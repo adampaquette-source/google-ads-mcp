@@ -1,0 +1,42 @@
+# Secrets
+.env
+.env.*
+!.env.example
+credentials/
+*.json.key
+ads-mcp-sa-key.json
+
+# Audit log
+audit.db
+*.db-journal
+
+# Campaign creation proposals (pending proposals stored locally before commit)
+creation_proposals/
+
+# Campaign image assets (local working storage; uploaded to Google Ads on approval)
+campaign_assets/*/
+!campaign_assets/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Tooling
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Local notes (uncomment if you want to keep these private)
+# NOTES.md

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "google-ads": {
+      "command": "/Users/adam.paquette/.local/bin/uv",
+      "args": ["run", "python", "-m", "mcp_server.server"]
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "_comment": "1-to-1 mapping between Shopify store keys and Google Ads customer IDs. Powermatic Tool Store (ads_customer_id: 2923679101, SUSPENDED) has no Shopify counterpart.",
+  "stores": [
+    {
+      "shopify_key": "the-klein-store",
+      "shopify_domain": "the-klein-store.myshopify.com",
+      "ads_customer_id": "1669270772",
+      "ads_name": "Hand Tool Outlet",
+      "ads_status": "ENABLED",
+      "env_slug": "THE_KLEIN_STORE",
+      "identifiers": ["Klein Store", "Hand Tool Outlet", "HTO"]
+    },
+    {
+      "shopify_key": "the-pls-store",
+      "shopify_domain": "the-pls-store.myshopify.com",
+      "ads_customer_id": "5467804732",
+      "ads_name": "PLS Store",
+      "ads_status": "ENABLED",
+      "env_slug": "PLS_STORE",
+      "identifiers": ["PLS", "PLS Store"]
+    },
+    {
+      "shopify_key": "knaack-store",
+      "shopify_domain": "knaack-store.myshopify.com",
+      "ads_customer_id": "1303776622",
+      "ads_name": "Jobsite Tool Boxes",
+      "ads_status": "ENABLED",
+      "env_slug": "JTB_STORE",
+      "identifiers": ["Knaack Store", "Jobsite Tool Boxes", "JTB"]
+    },
+    {
+      "shopify_key": "toolup-my-tool-store",
+      "shopify_domain": "toolup-my-tool-store.myshopify.com",
+      "ads_customer_id": "4454933108",
+      "ads_name": "MyToolStore Official",
+      "ads_status": "ENABLED",
+      "env_slug": "MTS_STORE",
+      "identifiers": ["My Tool Store", "MTS"]
+    },
+    {
+      "shopify_key": "the-makita-store",
+      "shopify_domain": "the-makita-store.myshopify.com",
+      "ads_customer_id": "8243583623",
+      "ads_name": "Jobsite Power Tools",
+      "ads_status": "ENABLED",
+      "env_slug": "JPT_STORE",
+      "identifiers": ["Makita Store", "Jobsite Power Tools", "JPT"]
+    },
+    {
+      "shopify_key": "fall-protection-store",
+      "shopify_domain": "fall-protection-store.myshopify.com",
+      "ads_customer_id": "9847716139",
+      "ads_name": "Fall Protection Depot",
+      "ads_status": "ENABLED",
+      "env_slug": "FPD_STORE",
+      "identifiers": ["Fall Protection Depot", "FPD"]
+    },
+    {
+      "shopify_key": "the-jet-store",
+      "shopify_domain": "the-jet-store.myshopify.com",
+      "ads_customer_id": "5796649170",
+      "ads_name": "Jet Tool Store",
+      "ads_status": "SUSPENDED",
+      "env_slug": "MST_STORE",
+      "identifiers": ["Jet Store", "Metal Shop Tools", "MST"]
+    },
+    {
+      "shopify_key": "weather-guard-store",
+      "shopify_domain": "weather-guard-store.myshopify.com",
+      "ads_customer_id": "3174244337",
+      "ads_name": "Weather Guard Store",
+      "ads_status": "ENABLED",
+      "env_slug": "TBO_STORE",
+      "identifiers": ["Weather Guard Store", "Truck Box Outlet", "TBO"]
+    },
+    {
+      "shopify_key": "fasteners-store",
+      "shopify_domain": "fasteners-store.myshopify.com",
+      "ads_customer_id": "4034017727",
+      "ads_name": "Total Fastening",
+      "ads_status": "ENABLED",
+      "env_slug": "TF_STORE",
+      "identifiers": ["Total Fastening", "Simpson Store", "TF"]
+    },
+    {
+      "shopify_key": "the-sumner-store",
+      "shopify_domain": "the-sumner-store.myshopify.com",
+      "ads_customer_id": "5567964560",
+      "ads_name": "Sumner Outlet",
+      "ads_status": "ENABLED",
+      "env_slug": "SO_STORE",
+      "identifiers": ["Sumner Outlet", "Sumner Store", "SO"]
+    },
+    {
+      "shopify_key": "the-dewalt-store",
+      "shopify_domain": "the-dewalt-store.myshopify.com",
+      "ads_customer_id": "9190601069",
+      "ads_name": "Authorizedtooloutlet.com",
+      "ads_status": "ENABLED",
+      "env_slug": "ATO_STORE",
+      "identifiers": ["Dewalt Store", "Authorized Tool Outlet", "ATO"]
+    },
+    {
+      "shopify_key": "greenlee-store",
+      "shopify_domain": "greenlee-store.myshopify.com",
+      "ads_customer_id": "8673147832",
+      "ads_name": "Electrician Shop",
+      "ads_status": "ENABLED",
+      "env_slug": "GS_STORE",
+      "identifiers": ["Electrician Shop", "Greenlee Store", "ES"]
+    },
+    {
+      "shopify_key": "the-ridgid-store",
+      "shopify_domain": "the-ridgid-store.myshopify.com",
+      "ads_customer_id": "9976741128",
+      "ads_name": "Plumbingtoolstore.com",
+      "ads_status": "ENABLED",
+      "env_slug": "PTS_STORE",
+      "identifiers": ["Ridgid Store", "Plumbing Tool Store", "PTS"]
+    },
+    {
+      "shopify_key": "gearwrench-shop",
+      "shopify_domain": "gearwrench-shop.myshopify.com",
+      "ads_customer_id": "5327742235",
+      "ads_name": "Gearwrench Shop",
+      "ads_status": "ENABLED",
+      "env_slug": "GWS_STORE",
+      "identifiers": ["Gearwrench Shop", "GWS"]
+    },
+    {
+      "shopify_key": "wood-shop-outlet",
+      "shopify_domain": "wood-shop-outlet.myshopify.com",
+      "ads_customer_id": "1532947017",
+      "ads_name": "Pro Work Supply",
+      "ads_status": "ENABLED",
+      "env_slug": "PWS_STORE",
+      "identifiers": ["Wood Shop Outlet", "Pro Work Supply", "PWS"]
+    },
+    {
+      "shopify_key": "occidentalleatheroutlet",
+      "shopify_domain": "occidentalleatheroutlet.myshopify.com",
+      "ads_customer_id": "9173836783",
+      "ads_name": "Tool Belt Outlet",
+      "ads_status": "ENABLED",
+      "env_slug": "OLO_STORE",
+      "identifiers": ["Occidental Leather Outlet", "Occidental Store", "Tool Belt Outlet", "OLO"]
+    },
+    {
+      "shopify_key": "toolupstore",
+      "shopify_domain": "toolupstore.myshopify.com",
+      "ads_customer_id": "1864748540",
+      "ads_name": "ToolUp",
+      "ads_status": "ENABLED",
+      "env_slug": "TUP_STORE",
+      "identifiers": ["Toolup", "TUP"]
+    },
+    {
+      "shopify_key": "the-milwaukee-store",
+      "shopify_domain": "the-milwaukee-store.myshopify.com",
+      "ads_customer_id": "4033622485",
+      "ads_name": "Themilwaukeestore.com",
+      "ads_status": "ENABLED",
+      "env_slug": "RTS_STORE",
+      "identifiers": ["Milwaukee Store", "Red Tool Store", "RTS"]
+    }
+  ],
+  "ads_only": [
+    {
+      "ads_customer_id": "2923679101",
+      "ads_name": "Powermatic Tool Store",
+      "ads_status": "SUSPENDED",
+      "note": "No Shopify store counterpart in stores.config.json"
+    }
+  ]
+}

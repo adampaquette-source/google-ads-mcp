@@ -1,0 +1,307 @@
+# Google Ads MCP Project — Handoff Brief for Codex
+
+This file is the working spec for the Google Ads MCP server project. Read it at the start of every session. The companion document `Google_Ads_MCP_Scoping.docx` in this folder contains the full scoping rationale. This file is the actionable subset.
+
+## Shared repo orientation
+
+Codex shares this repository with Claude Code. At startup, read `CLAUDE.md` as the companion orientation file to learn what this repo is about from Claude's side of the handoff. Treat `AGENTS.md` as the Codex-specific working spec and `CLAUDE.md` as shared context, then follow the stricter instruction if the two files ever conflict.
+
+## Owner
+
+Adam Paquette (adam.paquette@pcstools.com). Limited coding background, relies on Codex for implementation. Be explicit about every command and code change. Explain non-obvious decisions.
+
+## Project goal
+
+Build a custom MCP (Model Context Protocol) server that lets Codex (via Codex and Cowork desktop) assist with managing 10+ Google Ads accounts under a single MCC. The server exposes tools for performance reporting, health checks, change proposals with approval, and (later) net-new campaign creation.
+
+## Architecture: two processes, one shared library
+
+```
+project/
+├── ads_mcp/                # Shared library — all Google Ads logic lives here
+│   ├── auth.py             # OAuth + credential management
+│   ├── client.py           # google-ads client factory
+│   ├── reporting/          # Read functions (Phase 1)
+│   ├── proposals/          # Write proposal builders (Phase 3)
+│   ├── creation/           # Campaign creation builders (Phase 4)
+│   ├── audit.py            # Audit log writer
+│   └── notify.py           # Google Chat / Slack / Dropbox digest delivery
+│
+├── mcp_server/             # Process A: local stdio MCP server
+│   └── server.py           # FastMCP server exposing tools from ads_mcp/
+│
+├── digest_worker/          # Process B: scheduled cloud worker
+│   ├── main.py             # Cloud Run entry point
+│   ├── Dockerfile
+│   └── cloudbuild.yaml
+│
+├── scripts/
+│   └── deploy_digest_worker.sh
+│
+├── tests/
+├── .env.example
+├── pyproject.toml          # uv or poetry
+└── README.md
+```
+
+Both processes import from `ads_mcp/`. Reporting logic is written once.
+
+## Tech stack (locked)
+
+- **Language:** Python 3.11+
+- **Package manager:** uv (or poetry — pick one and stick with it)
+- **MCP framework:** `fastmcp` (https://github.com/jlowin/fastmcp)
+- **Google Ads client:** `google-ads` (official, https://github.com/googleads/google-ads-python)
+- **Merchant API client:** `google-shopping-merchant-*` (Phase 5)
+- **Cloud deployment target:** Google Cloud Run, region us-central1 (or closest to Adam)
+- **Scheduler:** Google Cloud Scheduler
+- **Secrets:** local .env (dev), Google Secret Manager (prod digest worker)
+- **Audit log:** SQLite for local MCP, Firestore for cloud digest worker
+- **Linting/formatting:** ruff + black
+- **Type checking:** mypy (strict on ads_mcp/, loose on top-level scripts)
+
+## Authentication
+
+**This project uses service account + JWT authentication, not OAuth installed-app flow.** An internal engineer is already using a service account for a related labels script, and we follow the same pattern. No browser consent flow. No refresh tokens to manage.
+
+The service account's JSON key file is stored at the project root (gitignored) and referenced by path from `.env`. The service account is added as a user on the Google Ads MCC with Standard access (so it inherits access to all sub-accounts and can perform writes in Phase 3+).
+
+For Phase 2 (Cloud Run digest worker), the JSON key contents will be stored in Google Secret Manager. The library code should support both modes: read from a local JSON file path when running locally, read from Secret Manager when running on Cloud Run. Detect via the `ADS_MCP_ENV` env var.
+
+The `google-ads-python` client supports service account auth natively via the `json_key_file_path` configuration property, or by passing `google.oauth2.service_account.Credentials` directly. Use the latter pattern so credentials can come from either a file (local) or a Secret Manager fetch (cloud) without changing the client construction code.
+
+## Environment variables
+
+`.env` at project root (gitignored). `.env.example` checked in.
+
+```
+# Google Ads API
+GOOGLE_ADS_DEVELOPER_TOKEN=
+GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH=./credentials/adam-mcp-496818-9eefc00dccae.json
+GOOGLE_ADS_LOGIN_CUSTOMER_ID=     # The MCC ID, no dashes
+
+# Notifications (used by digest worker)
+GOOGLE_CHAT_WEBHOOK_URL=
+SLACK_WEBHOOK_URL=
+DROPBOX_DIGEST_PATH=/Users/.../Dropbox/.../001-Google Ads MCP Project/digests
+
+# Project config
+ADS_MCP_ENV=local                  # local | cloud
+ADS_MCP_AUDIT_LOG_PATH=./audit.db
+```
+
+**Gitignore is already in place** (`.gitignore` at project root) and excludes:
+- `.env`
+- `credentials/` (where the service account JSON key lives)
+- `audit.db`
+- Standard Python tooling junk
+
+The service account JSON key lives at `credentials/adam-mcp-496818-9eefc00dccae.json`. The Cloud project is `adam-mcp-496818`. The service account email is `mcp-server@adam-mcp-496818.iam.gserviceaccount.com`.
+
+## Phase plan
+
+### Phase 0: Prerequisites (no code, Adam-owned)
+- Apply for Google Ads API Basic Access dev token from MCC
+- Create Google Cloud project `ads-mcp-prod`, enable Google Ads API
+- Create OAuth 2.0 client (Desktop app type), save client ID + secret
+- Create Google Chat space + Incoming Webhook
+- Create Slack free workspace + Incoming Webhooks app
+- Create Dropbox `/digests` subfolder
+
+### Phase 1: Read-only MCP server (MVP) — START HERE WHEN PREREQUISITES READY
+**Definition of done:** Codex can call `list_accounts` and `get_campaign_performance` from Cowork or Codex against Adam's real MCC and receive correct structured data.
+
+Steps:
+1. Scaffold the project structure above. Use `uv init` if uv is preferred, otherwise `poetry init`.
+2. Build `ads_mcp/auth.py` to load the service account JSON key (path from `.env`) and produce `google.oauth2.service_account.Credentials`. No refresh token flow needed.
+3. Build `ads_mcp/client.py` to construct a `GoogleAdsClient` using those credentials plus the developer token and login customer ID from `.env`.
+4. Write a smoke test that calls `customer_service.list_accessible_customers()` and prints results. Run against Adam's real MCC to verify the service account has the right permissions.
+5. Build the Phase 1 read-only tool set in `ads_mcp/reporting/`:
+   - `list_accounts()`
+   - `get_account_summary(customer_id, date_range)`
+   - `get_campaign_performance(customer_id, date_range, filters=None)`
+   - `get_ad_group_performance(customer_id, campaign_id, date_range)`
+   - `get_search_terms(customer_id, campaign_id, date_range)`
+   - `get_keyword_performance(customer_id, date_range)`
+   - `get_product_performance(customer_id, date_range)` # Shopping/PMax
+   - `check_troas_pacing(customer_id, drift_pct=10)`
+   - `check_budget_pacing(customer_id)`
+   - `find_anomalies(customer_id, metric, sensitivity=2.0)`
+   - `find_disapprovals(customer_id)`
+6. Expose them as FastMCP tools in `mcp_server/server.py`.
+7. Configure Codex / Cowork to run the server (stdio). Write the exact MCP configuration JSON for Adam.
+8. Verify end-to-end: ask Codex in Cowork "Give me a performance summary across all my accounts for the last 30 days." Confirm the response is correct.
+
+### Phase 2: Scheduled digest worker
+- Build `digest_worker/main.py` that imports `ads_mcp.reporting`, runs a templated cross-account report, calls Codex via the Anthropic API to write a digest narrative, and posts to Google Chat + Slack + writes to Dropbox.
+- Containerize and deploy to Cloud Run.
+- Wire Cloud Scheduler to trigger it daily (and weekly long-form on Mondays).
+
+### Phase 3: Targeted adjustments with batch approval
+- Add `ads_mcp/proposals/` with builder functions per change type
+- Add MCP tools: `propose_troas_change`, `propose_budget_change`, `propose_campaign_status`, `propose_negative_keywords`, `propose_asset_group_signals`, `propose_bid_adjustments`
+- Add `get_change_plan(plan_id)` and `commit_change_plan(plan_id, approval_token)`
+- Write all changes to the audit log on commit
+- **Approval pattern:** No write tool executes directly. Each `propose_*` returns a plan ID and a structured diff. `commit_change_plan` requires the operator to pass an approval token that the MCP client surfaces to Adam in chat. The token is short-lived (5 min) and single-use.
+
+### Phase 4: Net-new campaign creation
+- Add `ads_mcp/creation/` for campaign builders
+- Add MCP tools: `create_branded_search_campaign`, `create_pmax_campaign`, `create_asset_group`, `link_merchant_feed`
+- Integrate with the existing `google-ads-pmax-builder` skill: that skill produces structured asset group inputs, this MCP turns them into real campaigns
+- Creation goes through the same plan/commit pattern as Phase 3
+
+### Phase 5: Merchant Center
+- Add `ads_mcp/merchant/` for Merchant API client
+- Add MCP tools: `list_merchant_accounts`, `get_feed_health`, `get_disapproved_products`, `get_product_issues`
+- Tie feed health to PMax campaigns in the digest worker output
+
+### Phase 6: Google Chat bot (ChatOps interface)
+- Build a Google Chat app (bot) with an HTTPS endpoint (Cloud Run)
+- Receives @mentions and DMs from Chat, parses the message, calls relevant MCP/ads_mcp functions
+- Responds inline in Chat -- enables queries like "@GoogleAds digest" or "@GoogleAds campaign performance for ToolUp" without opening Codex
+- Requires: persistent HTTPS endpoint, Chat app registration in GCP, event verification, optional Anthropic API call for natural language intent parsing
+- Parked: implement after Phase 5, or as a standalone spike if ChatOps becomes a priority
+
+### Phase 7: Guardrails and proactive automation
+- Add a YAML config defining safe-change envelopes per change type
+- Below-envelope proposals auto-commit (still audited)
+- Above-envelope proposals fall back to Phase 3 batch approval
+- Add scheduled actions in the digest worker (e.g. propose tROAS shifts on Monday for drift detected during the week)
+
+## Coding conventions
+
+- **No em dashes in any text output** (user preference). This includes log messages, docstrings, error messages, digest content, anything user-facing.
+- **All public functions in `ads_mcp/` are typed.** Use TypedDict or Pydantic models for structured returns. MCP tools must return JSON-serializable structures.
+- **GAQL queries live in `ads_mcp/reporting/queries.py`** as constants, not inline strings scattered through code. One source of truth.
+- **Pagination is mandatory.** Google Ads API pages results. Use `search_stream` or handle pagination explicitly. Never assume a single page is the full result.
+- **Date ranges accept either a preset string** (`LAST_7_DAYS`, `LAST_30_DAYS`, `THIS_MONTH`, etc.) **or an explicit `{start_date, end_date}` dict.** Adam will use both patterns.
+- **All write operations log to the audit table** before AND after the API call so partial failures are visible.
+- **Customer IDs are strings, not ints.** Google Ads customer IDs can have leading zeros depending on context. Always strings.
+- **Use the official google-ads logging config** for the underlying client; surface high-level info to stderr.
+
+## Approval and safety rules (for Phase 3+)
+
+- All accounts in the MCC are owned by Adam's org. No agency clients. No per-account compliance allowlist needed.
+- Operationally still treat writes carefully. Audit log everything. Make rollback queries easy (`get_recent_changes(account_id, hours=24)`).
+- Never expose a tool that performs a write without going through the proposal/commit flow.
+- The approval token returned by `get_change_plan` is what Adam approves in chat. Without that token, `commit_change_plan` raises.
+
+## Notifications (Phase 2+)
+
+Google Chat is primary. Slack is backup (same content posted to both). Dropbox is archival.
+
+- Google Chat: simple incoming webhook, POST `{"text": "..."}` for plain or `{"cards": [...]}` for rich
+- Slack: simple incoming webhook, POST `{"text": "..."}` or block kit
+- Dropbox: write `digests/YYYY-MM-DD_daily.md` and `digests/YYYY-MM-DD_weekly.md`
+
+Digest content is **written by Codex via the Anthropic API**, not hand-templated. The digest worker fetches the data, gathers structured summaries, then prompts Codex to write the narrative. This keeps the prose adaptive instead of robotic.
+
+## File index and relationships
+
+| File | Role | Read when |
+|---|---|---|
+| `AGENTS.md` | Session entry point. Coding conventions, phase plan, file relationships, change routing. | Every session. |
+| `CONSULTATION_RESULTS.md` | Business decisions. Account tiers, alert philosophy, display preferences, priority build stack. | Session start for any ads work. Update when a business decision changes. |
+| `DIGEST_SKILL.md` | Execution. Parameterized step-by-step for daily and weekly digest runs. Self-contained. | Every digest run (manual or scheduled). Update when digest behavior changes. |
+| `DIGEST_SOP.md` | Rationale. WHY behind the skill: edge case explanations, tier logic detail, build stack context. | When modifying digest tooling or investigating unexpected output. Update when rationale or edge cases change. |
+| `ads_mcp/reporting/troas_audit.py` | tROAS audit logic. Proposal generation, drift thresholds, step bands, rollback check. | Every session touching tROAS tools. |
+| `ads_mcp/proposals/troas.py` | tROAS apply logic. Google Ads mutate call for target_roas.target_roas. | When modifying the write operation or adding rollback apply. |
+| `GOOGLE_ADS_API_REFERENCE.md` | API reference. GAQL syntax, field names, quota rules, write operation structure. | Any session touching `ads_mcp/` or `mcp_server/`. |
+| `GCHAT_CARD_SCHEMA.md` | Google Chat card schema. Widget types, color token palette, DigestCardData schema, formatting preferences log, and the v2 upgrade plan. | Any session touching `ads_mcp/notify.py`, digest output, or any Chat notification. Update when a formatting preference is discovered or changed. |
+| `stores_mapping.json` | Store registry. Authoritative 1-to-1 map of shopify_key to ads_customer_id for all 18 stores. | Any session joining Shopify and Google Ads data. Update when a store is added, removed, or renamed. |
+| `STORE_PROFILES.md` | Per-store conventions and facts (free shipping verbiage and threshold, URL patterns, campaign naming, brand string casing, default logo asset, business name, default geo + language, account quirks). One section per store. ToolUp is fully filled; other 17 stores are stubs to fill on first encounter. | Any campaign creation task -- look up the target customer_id's section before pulling defaults. Update the relevant section when a store-level fact is discovered or changes; bump `last_verified`. |
+| `NOTES.md` | Cross-session scratch pad. Created by Codex as needed. | If it exists, read at session start. |
+| `CAMPAIGN_CREATION_BEST_PRACTICES.md` | Canonical, task-agnostic guide for all campaign creation work. Always rules, pre-flight research, asset group composition rules, brand-term search theme rule, free shipping verbiage rule, Shopify MCP for final URLs, brand_name matching, **skill registry**, self-improvement rule. | Any campaign creation task -- read this BEFORE the campaign-type skill. Update when a new evergreen finding emerges (after consulting Adam). |
+| `PMAX_BRAND_BREAKOUT_SKILL.md` | PMax brand breakout skill. Parameterized execution: brand analytics, Ahrefs research, copy + settings, image prep, propose, commit. Has explicit `🛑 PAUSE FOR ADAM` checkpoints. Inherits rules from `CAMPAIGN_CREATION_BEST_PRACTICES.md`. | When executing a brand breakout campaign creation task. |
+| `PMAX_IMAGE_BEST_PRACTICES.md` | Evergreen PMax image creative guide. ~10 images per asset group target. Sourcing priority (existing assets, Shopify MCP, manufacturer, other sellers, general web, then generation). Mandatory direct-image-link rule for any generation prompt. Hero product rule. 3-prompt supplement structure. Per-campaign folder convention and manifest schema. | Any campaign creation task that needs new image assets or image prompts. Update when new creative findings or preferences are discovered. |
+| `campaign_assets/` (directory) | Local working storage for per-campaign artifacts. Structure: `campaign_assets/<campaign_slug>/PROPOSAL.md` + per-asset-group `<slug>/{sourced,generated}/` + `manifest.md`. PROPOSAL.md is the required human-readable working artifact (header table, per-step sections, checkpoint markers, outstanding items, revision log -- see `CAMPAIGN_CREATION_BEST_PRACTICES.md` § Required: PROPOSAL.md). Gitignored except the README. | Created and populated by every campaign creation skill -- PROPOSAL.md is initialized right after the initial data pull and maintained through every revision. Adam reads PROPOSAL.md at every pause checkpoint. |
+| `Google_Ads_MCP_Scoping.docx` | Original scoping rationale. Background only. | Rarely -- only if re-evaluating architecture. |
+
+Scheduled tasks read `DIGEST_SKILL.md` at runtime. They are thin wrappers:
+- `google-ads-daily-digest` calls DIGEST_SKILL.md in DAILY mode (LAST_7_DAYS)
+- `google-ads-weekly-digest` calls DIGEST_SKILL.md in WEEKLY mode (LAST_30_DAYS)
+
+To view or edit scheduled task prompts: use the `mcp__scheduled-tasks__list_scheduled_tasks` and `mcp__scheduled-tasks__update_scheduled_task` tools.
+
+---
+
+## Change routing
+
+When tasked with a change, use this table to find every file that needs updating. Missing an entry means stale behavior in production.
+
+| Change type | Files to update |
+|---|---|
+| MER threshold or formula | `ads_mcp/reporting/mer.py` (_mer_status, assemble_mer_report) + `DIGEST_SKILL.md` (Step 4 thresholds) + `DIGEST_SOP.md` (MER table) + `CONSULTATION_RESULTS.md` (Reporting Display Preferences) |
+| Narrative format or section order | `DIGEST_SKILL.md` (Step 5 format rules and templates) + `DIGEST_SOP.md` (narrative format rules section) |
+| Alert threshold (tROAS drift %, zero-conversion window, budget pacing ratio) | `ads_mcp/reporting/health.py` (check functions) + `DIGEST_SKILL.md` (relevant step) + `DIGEST_SOP.md` (alert logic section) + `CONSULTATION_RESULTS.md` (Alert Logic section) |
+| Account tier assignment or tier behavior | `CONSULTATION_RESULTS.md` (Account Tier Structure) + `DIGEST_SKILL.md` (tier-aware alert depth) + `DIGEST_SOP.md` (tier table) |
+| New or removed store | `stores_mapping.json` + `DIGEST_SKILL.md` (store mapping table) + `DIGEST_SOP.md` (Shopify stores mapping section) |
+| Store edge case behavior | `DIGEST_SKILL.md` (edge cases section in Step 5) + `DIGEST_SOP.md` (Known edge cases section) |
+| New MCP tool | `ads_mcp/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (if new GAQL queries) |
+| New or modified campaign creation tool | `ads_mcp/creation/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (sections 10-11) |
+| Evergreen / task-agnostic campaign creation finding (copy rule, pre-flight step, failure mode, store-level fact, etc.) | `CAMPAIGN_CREATION_BEST_PRACTICES.md` (canonical) -- after consulting Adam per the self-improvement rule in that file |
+| PMax image creative finding or preference (sourcing, prompts, mix, anti-patterns) | `PMAX_IMAGE_BEST_PRACTICES.md` (canonical) + any active campaign creation skill that references it (e.g. `PMAX_BRAND_BREAKOUT_SKILL.md`) |
+| New campaign-type skill needed | Create `<TYPE>_SKILL.md` + register it in the skill registry table inside `CAMPAIGN_CREATION_BEST_PRACTICES.md` + add a row to the file index in this file (`AGENTS.md`) |
+| Store-level fact discovered or changed (URL pattern, free shipping verbiage / threshold, campaign naming convention, brand string casing, logo asset, business name, geo/language defaults, account quirk) | `STORE_PROFILES.md` (the relevant store's section). Bump `last_verified`. |
+| Chat card format or widget layout | `ads_mcp/notify.py` + `GCHAT_CARD_SCHEMA.md` (Formatting preferences log) + `DIGEST_SKILL.md` (Step 5 if DigestCardData fields change) |
+| Chat card formatting preference discovered | `GCHAT_CARD_SCHEMA.md` (Formatting preferences log table) |
+| tROAS audit thresholds (drift %, step bands, spend scaling %, cooldown days) | `ads_mcp/reporting/troas_audit.py` (constants at top of file) |
+| tROAS proposal Sheets formatting or columns | `ads_mcp/sheets.py` (_TROAS_PROPOSALS_HEADERS + _setup_troas_proposals_formatting + write_troas_proposals) |
+| tROAS rollback threshold (drop %, min spend) | `ads_mcp/reporting/troas_audit.py` (_ROLLBACK_DROP_PCT + _ROLLBACK_MIN_SPEND_L7) |
+| tROAS Chat space webhook | `.env` (GOOGLE_ADS_TROAS_WEBHOOK_URL) + `.env.example` |
+| Scheduled task timing or cadence | `mcp__scheduled-tasks__update_scheduled_task` (cronExpression field only -- do not touch the prompt unless behavior is also changing) |
+| Digest step sequence | `DIGEST_SKILL.md` (step order) + `DIGEST_SOP.md` (tool sequence section) |
+| Google Sheets tab structure or formatting | `ads_mcp/sheets.py` + `DIGEST_SOP.md` (Google Sheets dashboard section) |
+| Display preference (format, units, labels) | `CONSULTATION_RESULTS.md` (Reporting Display Preferences) + whichever files implement the preference |
+
+---
+
+## When generating a digest (manual or scheduled)
+
+Execute `DIGEST_SKILL.md` directly. Do not read `DIGEST_SOP.md` first -- it is rationale, not execution.
+Key reminders inline:
+- MER = Ad Spend % = (Ads Spend / Net Sales) x 100. Lower is better. Strong <= 5%.
+- Budget pacing UNDERPACING before 9am local = normal. Summarize in one line, do not list campaigns.
+- Tier 1 (Toolup, Red Tool Store, top 3 by spend): per-campaign detail on all alerts.
+- Tier 2/3: account-level only unless drift > 30% or actual ROAS = 0.
+- No em dashes. Digest Chat messages use cardsV2 format -- see GCHAT_CARD_SCHEMA.md.
+
+## When working on campaign creation (any session touching ads_mcp/creation/ or mcp_server/ creation tools, or any campaign build)
+
+**Read `CAMPAIGN_CREATION_BEST_PRACTICES.md` first.** It is the canonical, task-agnostic guide and contains the skill registry. Then read the campaign-type skill that matches the task (e.g. `PMAX_BRAND_BREAKOUT_SKILL.md`). Also read the matching customer_id's section in `STORE_PROFILES.md` for store-level defaults, and `PMAX_IMAGE_BEST_PRACTICES.md` if the task touches image assets.
+
+**Honor every `🛑 PAUSE FOR ADAM` checkpoint inside the skill file** -- those are non-negotiable human-in-the-loop gates. Never bypass one.
+
+Hard rules carried inline so they cannot be missed:
+- **All campaigns created via the API must be in `PAUSED` status.**
+- **Every write goes through propose/commit.** Never write directly.
+- **Read `GOOGLE_ADS_API_REFERENCE.md` sections 10 and 11** before writing or modifying any creation tool.
+- **Always run Ahrefs keyword research** before finalizing search themes or copy. For brand-affiliated asset groups, every search theme must contain the brand term.
+- **Verify free shipping verbiage and final URLs against the actual store** (Shopify MCP `get-collection` for collection links, store website header for promo verbiage). Never assume.
+- **If you learn something evergreen during the task, consult Adam about appending it to `CAMPAIGN_CREATION_BEST_PRACTICES.md`** per the self-improvement rule in that file.
+
+## When working on MCP tools (any session touching ads_mcp/ or mcp_server/)
+
+Read `GOOGLE_ADS_API_REFERENCE.md` before writing or modifying any tool. It covers:
+- GAQL syntax, date ranges, and field selectability rules
+- Correct resource field names and enum values for campaigns, ad groups, keywords, PMax asset groups, shopping, and customer_client
+- `search_stream()` vs `search()` and quota cost of each
+- MCC query pattern (queries are per customer_id; login_customer_id is always the MCC `7404361064`)
+- Write operation structure (update_mask, mutate request format) for Phase 3+
+- Error codes and retry pattern for quota exhaustion
+- Rate limits: 15,000 ops/day on Basic Access across 19 accounts
+
+## What to ask Adam at the start of a new session
+
+- "Did Google Ads API Basic Access get approved yet?" (until it has)
+- "Which phase are we working on today?"
+- "Any account-specific quirks I should know about before I run queries?"
+
+## What NOT to do
+
+- Don't make live writes to any account before the proposal/commit flow is built and tested
+- Don't store credentials anywhere except .env (local) or Google Secret Manager (cloud)
+- Don't commit .env, refresh tokens, or any secret to git
+- Don't use em dashes in any user-facing string
+- Don't bypass the audit log
+- Don't deploy to Cloud Run from a local machine without first running tests

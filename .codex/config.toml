@@ -1,0 +1,11 @@
+[mcp_servers.google-ads]
+args = [
+    "run",
+    "python",
+    "-m",
+    "mcp_server.server",
+]
+command = "/Users/adampaquette/.local/bin/uv"
+
+[mcp_servers.google-ads.tools.list_google_ads_accounts]
+approval_mode = "approve"
