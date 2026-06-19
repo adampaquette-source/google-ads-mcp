@@ -1293,6 +1293,7 @@ def commit_google_ads_pmax_campaign(proposal_id: str) -> PMaxCreationResult:
 # ---------------------------------------------------------------------------
 
 def _dfw_sheet_id() -> str:
+    import os
     sid = os.environ.get("DFW_LOOKUP_SHEET_ID", "").strip()
     if not sid:
         raise EnvironmentError(
