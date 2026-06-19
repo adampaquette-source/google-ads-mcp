@@ -36,9 +36,9 @@ This is the exact, executable Stage 1 build. It is Shopping-only (D20). Search a
 ## Step 1 - Feed prep: tag the roster in DataFeedWatch (per D15)
 Apply a custom label to **exactly the 60 SKUs in Step 5** so the campaign can be gated to them. A custom label is required because a brand or product_type filter cannot isolate these 60 from the other ~9,200 SKUs (the whole store is 3M).
 
-- **Attribute:** `custom_label_0 = pws_stage1_3m` (use a free custom_label slot if 0 is already used in the feed; update Step 2 to match).
+- **Attribute:** `custom_label_2 = pws_stage1_3m` (DFW field chosen 2026-06-19; _0/_1 reserved for other feed uses). The Step 2 inventory gate must use index 2 to match.
 - **Do it IN DataFeedWatch**, the source of truth that feeds Merchant Center. Setting the label via the Shopify Google app or a Merchant Center supplemental feed would be overwritten by DFW's output feed.
-- **Method - Google Sheet lookup table (now MCP-managed):** the `update_dfw_lookup_table` tool writes the 60 SKUs + label to the `DFW_LOOKUP_SHEET_ID` Google Sheet, and DFW reads that sheet (matched on the SKU field) to set `custom_label_0`. Once Adam creates + shares that sheet and connects it in DFW, I seed/refresh it via the tool. The `pws_stage1_3m_lookup.csv` in this folder (columns `sku,custom_label_0`) is the same data for a one-off manual upload if preferred. If DFW keys on `id`/`mpn` instead of `sku`, change the key column accordingly.
+- **Method (LIVE 2026-06-19): Google Sheet lookup table.** Sheet `1F8uQYzjLg3GK3ZDG6Xq5l6KpsyiNXy9LJvoRbZ20OHs`, tab **PWS_Stage1**, columns `sku, custom_label_2`, seeded with the 60 SKUs via `update_dfw_lookup_table`. DFW maps `custom_label_2` with "Use lookup table" on `sku` + "Only IF sku is in list" + ELSE leave empty. **The sheet must be shared Anyone-with-link = Viewer** for DFW to read it (and Editor to the service account for the MCP to write). `pws_stage1_3m_lookup.csv` in this folder mirrors the sheet.
 - **Rule alternative:** in DFW, `IF sku is any of [the 60 values] THEN custom_label_0 = pws_stage1_3m`.
 - Backorder / out-of-stock roster items stay labeled (D10) - do not gate to in-stock only.
 - **Exclusions to keep unlabeled:** the two DRAFT Speedglas helmets (837170, 835548) until Adam publishes them; the two sub-$10 eye singles (837129, 837254) per D14.
@@ -53,7 +53,7 @@ Apply a custom label to **exactly the 60 SKUs in Step 5** so the campaign can be
 | Campaign name | `PWS | Shopping | Stage 1 Learning (3M Core)` |
 | Merchant Center | the wood-shop-outlet MC account (confirm in pre-flight) |
 | Country of sale | United States |
-| **Inventory filter** | **`custom_label_0 = pws_stage1_3m`** (only advertise products that match) |
+| **Inventory filter** | **`custom_label_2 = pws_stage1_3m`** (only advertise products that match; propose with `custom_label_index: 2`) |
 | **Bidding strategy** | **Maximize Conversions** (no target CPA) |
 | **Daily budget** | **$25.00** to start; raise to **$40.00** per the D21 trigger below |
 | Campaign priority | Low |
@@ -126,7 +126,7 @@ Full titles, prices, and inventory are in `STAGE1_PROPOSAL.md` Stage 1 roster.
 
 ## Execution path (built 2026-06-19)
 The MCP now has a Standard Shopping propose/commit flow, so I build this campaign directly:
-- `propose_google_ads_standard_shopping_campaign(customer_id, config)` -- validates and stores a proposal, NO account change. Config carries the budget, merchant_id, `custom_label_value = pws_stage1_3m`, geo/language, and `pause_campaign_ids = ["23702140220"]` (PMax-A, D17).
+- `propose_google_ads_standard_shopping_campaign(customer_id, config)` -- validates and stores a proposal, NO account change. Config carries the budget, merchant_id, `custom_label_value = pws_stage1_3m` with `custom_label_index = 2`, geo/language, and `pause_campaign_ids = ["23702140220"]` (PMax-A, D17).
 - `get_google_ads_standard_shopping_proposal(proposal_id)` -- review the stored proposal.
 - `commit_google_ads_standard_shopping_campaign(proposal_id)` -- ONE atomic mutate: pause PMax-A, create budget + SHOPPING campaign (Maximize Conversions) + ad group + product ad + listing-group tree gating to the custom_label. Everything PAUSED. Writes `audit.db`. This is the only account-affecting step, gated on Adam's approval + pre-flight.
 

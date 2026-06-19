@@ -22,7 +22,7 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 
 ## Next action
 1. **DONE 2026-06-19:** DFW lookup Google Sheet created + shared with the service account; `DFW_LOOKUP_SHEET_ID` in `.env`; 60-SKU roster seeded to tab **PWS_Stage1** (sku -> custom_label_0 = pws_stage1_3m), verified by readback. Sheet ID `1F8uQYzjLg3GK3ZDG6Xq5l6KpsyiNXy9LJvoRbZ20OHs`.
-2. **Adam, in DataFeedWatch:** add that sheet/tab (PWS_Stage1) as a lookup source matched on `sku`, writing `custom_label_0`. Confirm the feed output shows the 60 items labeled.
+2. **DataFeedWatch: connected 2026-06-19** -- `custom_label_2` uses the PWS_Stage1 lookup table on `sku` (Only IF in list, ELSE empty). TWO things to confirm: (a) the sheet is shared **Anyone-with-link = Viewer** so DFW can read it (per DFW docs; else it returns empty), and (b) the feed output shows the 60 items carrying `custom_label_2 = pws_stage1_3m`. NOTE the gate is **custom_label_2**, so the campaign proposes with `custom_label_index: 2`.
 3. **Adam pre-flight:** confirm MC link, conversion action primary, geo/language (US/English), feed match key (sku).
 4. On approval: I `propose_…` then `commit_google_ads_standard_shopping_campaign` (pauses PMax-A + creates the PAUSED Shopping campaign atomically). Then Adam enables. No account changes without approval.
 5. Future lookup-table updates go through the `update_dfw_lookup_table` MCP tool (needs the session restart to load).
@@ -38,6 +38,7 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 8. **Watch item (not a blocker):** store conversion capability. If the $25/day run shows near-zero CVR after the first 2-3 weeks, the bottleneck is the storefront, not the ads; pause and do store-readiness/CRO work before scaling.
 
 ## Changelog (newest first)
+- 2026-06-19: DFW lookup sheet seeded + connected. Discovered DFW maps **custom_label_2** (not _0); re-seeded sheet header to `custom_label_2`, updated build spec/NOTES to gate on index 2. Codified the DFW loop in memory. Pushed repo to GitHub (adampaquette-source/google-ads-mcp).
 - 2026-06-19: Built MCP tooling: Standard Shopping propose/commit (creation/shopping.py, 3 tools) + DFW lookup-sheet tools (sheets.py, 2 tools). Validated the mutate builder offline. Docs updated (API ref §12, CLAUDE.md, .env.example, build spec). Pending: session restart + Adam's sheet/pre-flight setup, then propose/commit on approval.
 - 2026-06-17: Wrote STAGE1_BUILD_SPEC.md (executable Shopping-only build spec). Current stage / last action / next action updated.
 - 2026-06-17: Ratified D20 (Stage 1 Shopping only; Search to Stage 2) and D21 (budget $25/day scaling to $40 on signal). Updated NOTES, DECISIONS, STAGE1_PROPOSAL, STATE.

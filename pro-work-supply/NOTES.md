@@ -40,5 +40,9 @@ Last updated: 2026-06-17.
 - **Conversion-action configuration confirmed working (2026-06-17).** The single $145.20 Google Ads conversion maps exactly to a real Shopify order: the 3M XC-DC Scotch-Brite Clean and Strip disc, net sales $145.20 in the trailing-year Shopify sales report. So the purchase conversion action fires correctly for at least Ads-driven sales. (Primary status / GA4-vs-gtag import source still worth a glance on the Goals screen, but tracking is not the bottleneck.)
 - **Store conversion capability is the real constraint (verified via Shopify 2026-06-17).** Trailing 365 days, ALL channels: only **15 product lines sold, $1,422.80 total net sales**. The store has essentially no proven conversion engine across any channel, not just Ads. The Stage 1 budget math assumed ~1% Shopping CVR; the demonstrated all-channel reality is far lower. This is the dominant risk to a $40/day learning run and should be weighed (store readiness / CRO) before funding it.
 
+## Feed gate (DataFeedWatch, live 2026-06-19)
+- Roster is gated by **`custom_label_2 = pws_stage1_3m`** (DFW field 2; _0/_1 reserved for other uses). The Shopping campaign must gate on index 2.
+- DFW lookup table = Google Sheet `1F8uQYzjLg3GK3ZDG6Xq5l6KpsyiNXy9LJvoRbZ20OHs`, tab **PWS_Stage1**, columns `sku, custom_label_2`, 60 rows. Updated via the `update_dfw_lookup_table` MCP tool. Sheet must stay shared Anyone-with-link=Viewer (DFW reads) + Editor to the service account (MCP writes). See memory `datafeedwatch-feed-tool`.
+
 ## Decision log
-See `DECISIONS.md` in this folder. D1 through D16 are ratified; Stage 1 decisions are complete.
+See `DECISIONS.md` in this folder. D1 through D21 are ratified; Stage 1 decisions are complete.
