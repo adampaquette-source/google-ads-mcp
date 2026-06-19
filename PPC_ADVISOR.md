@@ -39,7 +39,10 @@ Operating principles:
 ### Smart Bidding and the learning phase
 - Smart Bidding needs roughly **15 to 30 conversions per 30 days** to exit learning. Below that, automated bidding is guessing.
 - **A high Target ROAS or Target CPA on an account with no conversion history starves the campaign.** The algorithm cannot find auctions it believes will hit the target, so it throttles spend toward zero. A cold account on a 500 to 700 percent tROAS will self-throttle to near-zero daily spend and never accumulate the history it needs. (This is exactly the PWS failure mode.)
-- Cold accounts must start on **Maximize Conversions** (or Maximize Conversion Value with no target) to manufacture conversion history first. Impose a ROAS target only once the history exists.
+- Cold accounts must start on a strategy that does not need conversion history, then switch once history exists. The right starting strategy depends on the channel:
+  - **Search / PMax:** start on Maximize Conversions (count), then add a target later.
+  - **Standard Shopping:** the platform actively BLOCKS conversion-based bidding on a cold account. Target ROAS returns `NOT_ENOUGH_CONVERSIONS`; Maximize Conversions and Maximize Conversion Value return `OPERATION_NOT_PERMITTED_FOR_CONTEXT`. The only permitted strategies are **Manual CPC** and **Maximize Clicks**. Cold-start Shopping on Manual CPC (managed max CPC) or Maximize Clicks to manufacture conversions, then switch to Maximize Conversion Value / tROAS once the account is warm enough. (PWS, 2026-06-19.)
+- **Verify permitted bidding strategies with `validate_only` before committing a campaign.** Do not assume a strategy is allowed for the channel + account-warmth combination; the API decides, and the error tells you why (`NOT_ENOUGH_CONVERSIONS` vs `OPERATION_NOT_PERMITTED_FOR_CONTEXT`).
 - Do not change the bid strategy mid-learning. It restarts the learning clock.
 
 ### Budget sizing for learning
@@ -78,6 +81,7 @@ Operating principles:
 - Declaring demand dead when conversion tracking is actually broken.
 - Changing bid strategy mid-learning and resetting the clock.
 - Scaling on a single good week instead of a stable trend.
+- Assuming a cold Shopping campaign can launch on Smart Bidding. The API blocks it; cold-start on Manual CPC or Maximize Clicks and validate strategies with `validate_only` first.
 
 ## Cross references
 - `CAMPAIGN_CREATION_BEST_PRACTICES.md` -- mechanics of building net-new campaigns. Read it for any build task.
@@ -167,7 +171,8 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 
 | Account | customer_id | Shopify key | Folder | Stage / status | Last touched |
 |---|---|---|---|---|---|
-| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 planned; nothing pushed | 2026-06-17 |
+| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 campaign created PAUSED (Manual CPC); awaiting enable | 2026-06-19 |
+| Spyder Supply | TBD (not in MCC yet) | TBD (not in Shopify server yet) | `spyder-supply/` | Onboarding; greenfield cold store, not yet provisioned | 2026-06-19 |
 
 Add a row when you begin a new account project and create its folder.
 
