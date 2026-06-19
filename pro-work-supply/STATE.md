@@ -21,10 +21,11 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 2026-06-19: Built the MCP tooling (permission granted). New: Standard Shopping propose/commit (`ads_mcp/creation/shopping.py` + 3 server tools) and DataFeedWatch lookup-sheet tools (`update_dfw_lookup_table` / `get_dfw_lookup_table` + `ads_mcp/sheets.py`). Mutate builder validated offline against the live client. Updated GOOGLE_ADS_API_REFERENCE.md (§12), CLAUDE.md routing, .env.example (DFW_LOOKUP_SHEET_ID), and STAGE1_BUILD_SPEC.md execution path.
 
 ## Next action
-1. **Restart the Claude Code session** so the new MCP tools load.
-2. **Adam setup:** create + share the DFW lookup Google Sheet with the service account, add `DFW_LOOKUP_SHEET_ID` to `.env`, connect it in DFW mapped to `custom_label_0`. Then I seed the 60 SKUs via `update_dfw_lookup_table`.
+1. **DONE 2026-06-19:** DFW lookup Google Sheet created + shared with the service account; `DFW_LOOKUP_SHEET_ID` in `.env`; 60-SKU roster seeded to tab **PWS_Stage1** (sku -> custom_label_0 = pws_stage1_3m), verified by readback. Sheet ID `1F8uQYzjLg3GK3ZDG6Xq5l6KpsyiNXy9LJvoRbZ20OHs`.
+2. **Adam, in DataFeedWatch:** add that sheet/tab (PWS_Stage1) as a lookup source matched on `sku`, writing `custom_label_0`. Confirm the feed output shows the 60 items labeled.
 3. **Adam pre-flight:** confirm MC link, conversion action primary, geo/language (US/English), feed match key (sku).
 4. On approval: I `propose_…` then `commit_google_ads_standard_shopping_campaign` (pauses PMax-A + creates the PAUSED Shopping campaign atomically). Then Adam enables. No account changes without approval.
+5. Future lookup-table updates go through the `update_dfw_lookup_table` MCP tool (needs the session restart to load).
 
 ## Open questions / waiting on
 1. **RESOLVED (D17):** pause PMax-A at Stage 1 launch.
