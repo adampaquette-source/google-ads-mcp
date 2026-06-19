@@ -1349,20 +1349,24 @@ def propose_google_ads_standard_shopping_campaign(
     IMPORTANT: This tool does NOT make any changes to Google Ads. Review the returned
     proposal, then call commit_google_ads_standard_shopping_campaign to execute it.
 
-    Stage 1 learning setup: Standard Shopping on Maximize Conversions (no ROAS target),
-    gated to a curated roster via a feed custom_label. The campaign and ad group are
-    created PAUSED.
+    Standard Shopping gated to a curated roster via a feed custom_label. Campaign and
+    ad group are created PAUSED. Cold accounts cannot use conversion-based Shopping
+    bidding (the API blocks it), so Stage 1 uses manual_cpc; switch to value/tROAS in
+    Stage 2 once conversions accumulate.
 
     config must be a dict matching StandardShoppingConfig:
       campaign_name        -- string (required)
       daily_budget_usd     -- float, >= 1.0 (required)
       merchant_id          -- int, Merchant Center account ID (required)
       custom_label_value   -- string gating the roster, e.g. "pws_stage1_3m" (required)
-      custom_label_index   -- int 0-4, default 0 (custom_label_0)
+      custom_label_index   -- int 0-4, default 0 (which custom_label_N to gate on)
+      bidding_strategy     -- "manual_cpc" (default) | "maximize_clicks" |
+                              "maximize_conversion_value" | "target_roas"
+      max_cpc_usd          -- float, default 0.55 (manual_cpc unit bid, or maximize_clicks ceiling)
+      target_roas_pct      -- float, required only for target_roas
       feed_label           -- string, default "US"
       campaign_priority    -- int 0/1/2, default 0 (Low)
-      geo_target_ids       -- list of strings, default ["2840"] (USA)
-      language_ids         -- list of strings, default ["1000"] (English)
+      geo_target_ids       -- list of strings, default ["2840"] (USA). No language criterion (Shopping uses feed language).
       ad_group_name        -- string, default "<campaign_name> Ad Group"
       enable_search_partners -- bool, default True
       pause_campaign_ids   -- list of campaign IDs to pause in the same commit

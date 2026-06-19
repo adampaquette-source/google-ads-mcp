@@ -504,3 +504,11 @@ Listing-group criteria reference a temp ad group: `customers/{cid}/adGroupCriter
 - This client runs `use_proto_plus=False`: messages are raw protobuf (enums are ints, no `_pb` wrapper). Field assignment and `client.copy_from` work the same; just do not rely on proto-plus-only accessors.
 - The feed `custom_label` is set in DataFeedWatch (the feed source of truth), not in the Shopify Google app or a Merchant Center supplemental feed (DFW overwrites those). See `ads_mcp/sheets.py` `write_dfw_lookup_table()` and the `update_dfw_lookup_table` tool.
 - Response resource names: pause/create campaign ops all return `campaign_result`, so the builder records the created campaign's op index (and ad group's) rather than scanning by type.
+
+### Standard Shopping creation constraints (learned 2026-06-19, account 1532947017)
+Discovered via `validate_only` and a live commit. Use `validate_only` (set `MutateGoogleAdsRequest.validate_only=True`) to probe before any real Shopping commit.
+- **`campaign.contains_eu_political_advertising` is REQUIRED** on create: `EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING`.
+- **Bidding by account warmth.** A cold account cannot use conversion-based bidding on Standard Shopping: `maximize_conversions` and `maximize_conversion_value` return `OPERATION_NOT_PERMITTED_FOR_CONTEXT`; `target_roas` returns `NOT_ENOUGH_CONVERSIONS`. Only **Manual CPC** and **Maximize Clicks (`target_spend`)** are permitted on a cold Shopping campaign. Manual CPC sets the bid on the biddable listing-group UNIT via `ad_group_criterion.cpc_bid_micros`; Maximize Clicks uses `target_spend.cpc_bid_ceiling_micros`.
+- **No language criterion.** A `campaign_criterion.language` on a Shopping campaign returns `OPERATION_NOT_PERMITTED_FOR_CONTEXT` -- Shopping serves by Merchant Center feed language. Set geo (`location`) only.
+- **Listing-group custom-label index enum:** `ProductCustomAttributeIndexEnum.INDEX2` serializes to int 9 (INDEX0=7 ... INDEX4=11). The excluded "everything else" unit has an empty `case_value.value` and `ad_group_criterion.negative = True`.
+- **Response mapping:** pause-existing and create ops both yield `campaign_result`, so capture the created campaign by op index, not by scanning result type.

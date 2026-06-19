@@ -60,6 +60,9 @@ class StandardShoppingConfig(TypedDict, total=False):
     ad_group_name: str                  # default "<campaign_name> Ad Group"
     enable_search_partners: bool        # default True
     pause_campaign_ids: list[str]       # campaigns to pause in the same commit
+    bidding_strategy: str               # "manual_cpc" (default) | "maximize_clicks" | "maximize_conversion_value" | "target_roas"
+    max_cpc_usd: float                  # manual_cpc unit bid, or maximize_clicks CPC ceiling (default 0.55)
+    target_roas_pct: float              # required only when bidding_strategy == "target_roas"
 
 
 class ShoppingProposal(TypedDict):
@@ -91,6 +94,8 @@ def _with_defaults(config: StandardShoppingConfig) -> StandardShoppingConfig:
     c.setdefault("language_ids", ["1000"])
     c.setdefault("enable_search_partners", True)
     c.setdefault("pause_campaign_ids", [])
+    c.setdefault("bidding_strategy", "manual_cpc")
+    c.setdefault("max_cpc_usd", 0.55)
     if not c.get("ad_group_name"):
         c["ad_group_name"] = f"{c.get('campaign_name', 'Shopping')} Ad Group"
     return c  # type: ignore[return-value]
@@ -114,8 +119,15 @@ def _validate_config(config: StandardShoppingConfig) -> list[str]:
         errors.append("campaign_priority must be 0, 1, or 2")
     if not config.get("geo_target_ids"):
         errors.append("geo_target_ids must contain at least one entry")
-    if not config.get("language_ids"):
-        errors.append("language_ids must contain at least one entry")
+    # language_ids is not used for Standard Shopping (served by feed language); not required.
+
+    strat = config.get("bidding_strategy", "manual_cpc")
+    if strat not in ("manual_cpc", "maximize_clicks", "maximize_conversion_value", "target_roas"):
+        errors.append(f"bidding_strategy {strat!r} not supported")
+    if strat in ("manual_cpc", "maximize_clicks") and float(config.get("max_cpc_usd", 0) or 0) <= 0:
+        errors.append("max_cpc_usd must be > 0 for manual_cpc / maximize_clicks")
+    if strat == "target_roas" and float(config.get("target_roas_pct", 0) or 0) <= 0:
+        errors.append("target_roas_pct must be > 0 for target_roas")
 
     return errors
 
@@ -269,8 +281,26 @@ def _build_mutate_operations(
     camp.advertising_channel_type = client.enums.AdvertisingChannelTypeEnum.SHOPPING
     camp.status = client.enums.CampaignStatusEnum.PAUSED
     camp.campaign_budget = budget_resource
-    # Maximize Conversions, no target CPA (cold-account learning bid strategy)
-    client.copy_from(camp.maximize_conversions, client.get_type("MaximizeConversions"))
+    # Required on campaign creation (EU political advertising declaration).
+    camp.contains_eu_political_advertising = (
+        client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
+    )
+    # Bidding strategy. A cold account (NOT_ENOUGH_CONVERSIONS) cannot use conversion-based
+    # Smart Bidding on Standard Shopping, so Stage 1 uses manual_cpc (Claude-managed max CPC)
+    # or maximize_clicks. The value/target strategies are wired for the Stage 2 switch.
+    strat = config.get("bidding_strategy", "manual_cpc")
+    max_cpc_micros = int(float(config.get("max_cpc_usd", 0) or 0) * 1_000_000)
+    if strat == "manual_cpc":
+        client.copy_from(camp.manual_cpc, client.get_type("ManualCpc"))
+    elif strat == "maximize_clicks":
+        ts = client.get_type("TargetSpend")
+        if max_cpc_micros > 0:
+            ts.cpc_bid_ceiling_micros = max_cpc_micros
+        client.copy_from(camp.target_spend, ts)
+    elif strat == "maximize_conversion_value":
+        client.copy_from(camp.maximize_conversion_value, client.get_type("MaximizeConversionValue"))
+    elif strat == "target_roas":
+        camp.target_roas.target_roas = float(config["target_roas_pct"]) / 100.0
     # Shopping settings
     camp.shopping_setting.merchant_id = int(config["merchant_id"])
     camp.shopping_setting.feed_label = config.get("feed_label", "US")
@@ -292,12 +322,8 @@ def _build_mutate_operations(
         crit.location.geo_target_constant = f"geoTargetConstants/{geo_id}"
         ops.append(op)
 
-    for lang_id in config.get("language_ids", []):
-        op = client.get_type("MutateOperation")
-        crit = op.campaign_criterion_operation.create
-        crit.campaign = camp_resource
-        crit.language.language_constant = f"languageConstants/{lang_id}"
-        ops.append(op)
+    # No language criterion: Standard Shopping serves by the Merchant Center feed
+    # language, and a language campaign_criterion is rejected (OPERATION_NOT_PERMITTED_FOR_CONTEXT).
 
     # ----- 5. AdGroup -----
     ag_temp = next_temp()
@@ -347,6 +373,9 @@ def _build_mutate_operations(
     unit.listing_group.parent_ad_group_criterion = root_resource
     unit.listing_group.case_value.product_custom_attribute.index = index_enum
     unit.listing_group.case_value.product_custom_attribute.value = config["custom_label_value"]
+    # Under manual_cpc the biddable unit carries the max CPC (the lever Claude manages weekly).
+    if strat == "manual_cpc":
+        unit.cpc_bid_micros = max_cpc_micros
     ops.append(op)
 
     # 7c. Everything-else unit: catch-all sibling, excluded

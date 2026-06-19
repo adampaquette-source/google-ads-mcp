@@ -13,6 +13,7 @@ Last updated: 2026-06-17.
 | Public storefront | `proworksupply.com` (canonical). The myshopify subdomain `wood-shop-outlet.myshopify.com` is the backend store key. |
 | Search brand strategy | Bid on high-demand **3M category terms** we are strong in ("3M [widget type]", e.g. 3M respirator, 3M peltor, 3M full face respirator), NOT the store name. Store-name brand demand is near zero (D18). |
 | Store identity | 100% 3M. The old woodworking-tool concept was fully replaced from the domain down; old woodworking collections and resources are unpublished and disregarded (D2). |
+| Stage 1 campaign | `23958300224` "PWS \| Shopping \| Stage 1 Learning (3M Core)" (Standard Shopping, Manual CPC $0.55, $25/day). Ad group `197719002237` "3M Core Roster". Gate: `custom_label_2 = pws_stage1_3m`. Created PAUSED 2026-06-19. Merchant Center `5748251237`. Primary conversion: "Google Shopping App Purchase". |
 
 ## Economics
 - **Margin:** flat 20% assumed. Shopify cost-per-item is not exposed by the connector, so true per-SKU margin is unknown (D3).

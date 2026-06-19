@@ -4,7 +4,7 @@
 |---|---|
 | Account | Pro Work Supply (`1532947017`), MCC login `7404361064` |
 | Store | `wood-shop-outlet` / proworksupply.com (100% 3M) |
-| Status | **DRAFT PROPOSAL - nothing created or pushed. Build only on Adam's go.** |
+| Status | **BUILT 2026-06-19 -- campaign `23958300224` created PAUSED. Not yet enabled.** Bidding is Manual CPC $0.55 (D22), not Maximize Conversions: the account is too cold for any conversion-based Shopping bidding. |
 | Date | 2026-06-17 |
 | Governing decisions | D5 (Max Conversions), D6 (Standard Shopping), D8/D9/D10/D13/D14 (feed rules), D17 (pause PMax-A), D20 (Shopping only), D21 ($25 -> $40 budget ramp) |
 
