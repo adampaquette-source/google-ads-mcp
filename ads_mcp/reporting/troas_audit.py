@@ -180,9 +180,9 @@ def build_troas_proposals(
                 camp = row.campaign
                 ag = row.ad_group
                 m = row.metrics
-                # ad_group.target_roas.target_roas is not GAQL-filterable;
-                # skip ad groups without their own tROAS here in Python.
-                if not ag.target_roas.target_roas:
+                # ad_group.target_roas (plain double in v24) is not
+                # GAQL-filterable; skip ad groups without their own tROAS here.
+                if not ag.target_roas:
                     continue
                 cost = micros_to_currency(m.cost_micros)
                 camp_id_str = str(camp.id)
@@ -192,7 +192,7 @@ def build_troas_proposals(
                     "campaign_name": camp.name,
                     "ad_group_id": str(ag.id),
                     "ad_group_name": ag.name,
-                    "target_roas_dec": ag.target_roas.target_roas,
+                    "target_roas_dec": ag.target_roas,
                     "cost": cost,
                     "conversions_value": m.conversions_value,
                 }

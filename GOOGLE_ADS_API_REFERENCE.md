@@ -479,3 +479,28 @@ See `ads_mcp/creation/listing_groups.py` for the implementation: `build_brand_su
 | `AssetGroupError.SHORT_DESCRIPTION_REQUIRED` | No description <= 60 chars | Shorten one description |
 | `RESOURCE_NOT_FOUND` on image resource | Wrong resource name for pre-uploaded asset | Re-run `list_google_ads_image_assets()` to get current names |
 | `FINAL_URL_SHOPPING_MERCHANT_HOME_PAGE_URL_DOMAINS_DIFFER` | Asset group final URL domain doesn't match Merchant Center | Use the same domain as the Merchant Center website |
+
+## 12. Standard Shopping campaign creation
+
+Used for cold-account learning (Stage 1): one Standard Shopping campaign on Maximize Conversions (no ROAS target), gated to a curated roster via a feed `custom_label`. Implemented in `ads_mcp/creation/shopping.py` (propose/get/commit, mirroring PMax). Campaign and ad group are created PAUSED.
+
+### Mutate operation ordering (single atomic request)
+
+1. (optional) `campaign_operation.update` per id in `pause_campaign_ids`, `update_mask=["status"]`, status PAUSED. Pauses a starved PMax in the same request so there is no auction overlap. (PMax outranks Standard Shopping for the same products, so it MUST be paused.)
+2. `CampaignBudget` (create, not shared).
+3. `Campaign`: `advertising_channel_type = SHOPPING` (enum 4), `status = PAUSED`, budget link. Bidding: `client.copy_from(campaign.maximize_conversions, client.get_type("MaximizeConversions"))` -- direct message assignment to the oneof is NOT allowed, use `copy_from`. `shopping_setting.merchant_id`, `.feed_label` (e.g. "US"), `.campaign_priority` (0=Low), `.enable_local=False`. `network_settings.target_google_search=True` (required), `.target_search_network=` partners toggle, `.target_content_network=False`.
+4. `CampaignCriterion` per geo (`location.geo_target_constant`) and language (`language.language_constant`).
+5. `AdGroup`: `type_ = SHOPPING_PRODUCT_ADS` (enum 4), status PAUSED.
+6. `AdGroupAd`: `client.copy_from(ad.shopping_product_ad, client.get_type("ShoppingProductAdInfo"))` (empty; creatives come from the feed), status PAUSED.
+7. Listing group tree (three `ad_group_criterion` nodes) gating to a custom label:
+   - root `listing_group.type_ = SUBDIVISION` (enum 2), no case_value, status ENABLED.
+   - included `UNIT`: `parent_ad_group_criterion = root`, `case_value.product_custom_attribute.index = INDEX{n}`, `.value = "<label>"`, biddable (negative defaults False).
+   - other `UNIT`: same parent + index, NO value (the catch-all sibling), `negative = True` (everything else excluded).
+
+### Temp resource naming for criteria
+Listing-group criteria reference a temp ad group: `customers/{cid}/adGroupCriteria/{adGroupTempId}~{criterionTempId}`. The `~` joins the ad group's negative temp id and the criterion's negative temp id. The included/other units set `parent_ad_group_criterion` to the root criterion's temp resource.
+
+### Notes
+- This client runs `use_proto_plus=False`: messages are raw protobuf (enums are ints, no `_pb` wrapper). Field assignment and `client.copy_from` work the same; just do not rely on proto-plus-only accessors.
+- The feed `custom_label` is set in DataFeedWatch (the feed source of truth), not in the Shopify Google app or a Merchant Center supplemental feed (DFW overwrites those). See `ads_mcp/sheets.py` `write_dfw_lookup_table()` and the `update_dfw_lookup_table` tool.
+- Response resource names: pause/create campaign ops all return `campaign_result`, so the builder records the created campaign's op index (and ad group's) rather than scanning by type.

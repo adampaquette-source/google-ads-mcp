@@ -40,3 +40,7 @@ logs/
 
 # Local notes (uncomment if you want to keep these private)
 # NOTES.md
+
+# Control center local data + copied Shopify MCP credentials
+control_center.db
+shopify_mcp/

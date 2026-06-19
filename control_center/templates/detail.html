@@ -1,0 +1,35 @@
+<div class="card card-body bg-surface-secondary m-2">
+  <div class="row g-4">
+    <div class="col-md-5">
+      <div class="subheader mb-1">Why flagged</div>
+      <div>{{ payload.rationale }}</div>
+      <div class="subheader mt-3 mb-1">Account context</div>
+      <div>{{ account_name }} (Tier {{ payload.tier }})
+        {% if mer and mer.mer is not none %} | MER {{ mer.mer }}% ({{ mer.status }}){% endif %}
+      </div>
+      {% if recent_changes %}
+      <div class="subheader mt-3 mb-1">Recent committed changes</div>
+      {% for c in recent_changes %}
+        <div class="text-secondary small">{{ c.created_at[:10] }}: {{ c.change_type }}{% if c.ad_group_name %} ({{ c.ad_group_name }}){% endif %} {{ c.current_value }} to {{ c.new_value }}</div>
+      {% endfor %}
+      {% endif %}
+    </div>
+    <div class="col-md-4 spark">
+      <div class="subheader mb-1">Spend, last 30 days</div>
+      {{ spark_cost | safe }}
+      <div class="subheader mt-3 mb-1">ROAS %, last 30 days</div>
+      {{ spark_roas | safe }}
+    </div>
+    <div class="col-md-3">
+      <div class="subheader mb-1">Window comparison</div>
+      <table class="table table-sm">
+        <thead><tr><th></th><th>L7</th><th>L30</th></tr></thead>
+        <tbody>
+        <tr><td>Spend</td><td>${{ '{:,.0f}'.format(l7.cost) }}</td><td>${{ '{:,.0f}'.format(l30.cost) }}</td></tr>
+        <tr><td>Revenue</td><td>${{ '{:,.0f}'.format(l7.value) }}</td><td>${{ '{:,.0f}'.format(l30.value) }}</td></tr>
+        <tr><td>ROAS</td><td>{{ '{:,.0f}'.format(l7.roas) }}%</td><td>{{ '{:,.0f}'.format(l30.roas) }}%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

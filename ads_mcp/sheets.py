@@ -1749,3 +1749,91 @@ def read_troas_log_recent(spreadsheet_id: str, days: int = 3) -> list[dict]:
             })
 
     return recent
+
+
+# ---------------------------------------------------------------------------
+# DataFeedWatch lookup tables
+#
+# DataFeedWatch can read a Google Sheet as a lookup table (match a feed field
+# such as `sku` against the sheet and pull another column, e.g. custom_label_0).
+# These helpers let the MCP own and update that sheet. The sheet is a separate
+# spreadsheet (DFW_LOOKUP_SHEET_ID), shared as Editor with the service account
+# and connected inside DataFeedWatch as a Google Sheet lookup source.
+# ---------------------------------------------------------------------------
+
+def _ensure_named_tab(svc, spreadsheet_id: str, tab: str) -> int:
+    """Return the sheetId for `tab`, creating the tab if it does not exist."""
+    sheet_map = _sheet_map(svc, spreadsheet_id)
+    if tab in sheet_map:
+        return sheet_map[tab]
+    _batch(svc, spreadsheet_id, [{"addSheet": {"properties": {"title": tab}}}])
+    return _sheet_map(svc, spreadsheet_id)[tab]
+
+
+def write_dfw_lookup_table(
+    rows: list[dict],
+    spreadsheet_id: str,
+    tab: str = "Sheet1",
+    clear: bool = True,
+) -> str:
+    """Overwrite a DataFeedWatch lookup tab with `rows` (a list of flat dicts).
+
+    The header is the ordered union of keys across rows, so every row should
+    share the same keys (e.g. {"sku": "835470", "custom_label_0": "pws_stage1_3m"}).
+    Returns the tab URL. Raises EnvironmentError if creds are not configured and
+    ValueError if rows is empty.
+    """
+    if not rows:
+        raise ValueError("rows is empty; nothing to write")
+
+    credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
+    if not credentials_path:
+        raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
+
+    svc = _service(credentials_path)
+    sheet_id = _ensure_named_tab(svc, spreadsheet_id, tab)
+
+    # Ordered union of keys -> header
+    header: list[str] = []
+    for r in rows:
+        for k in r:
+            if k not in header:
+                header.append(k)
+
+    values = [header] + [[str(r.get(k, "")) for k in header] for r in rows]
+
+    if clear:
+        _clear(svc, spreadsheet_id, tab)
+    _write(svc, spreadsheet_id, f"{tab}!A1", values)
+
+    return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid={sheet_id}"
+
+
+def read_dfw_lookup_table(spreadsheet_id: str, tab: str = "Sheet1") -> list[dict]:
+    """Read a DataFeedWatch lookup tab back as a list of dicts (header-keyed).
+
+    Returns an empty list if the tab is missing or has no data rows.
+    """
+    credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
+    if not credentials_path:
+        raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
+
+    svc = _service(credentials_path)
+    try:
+        result = svc.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=tab,
+        ).execute()
+    except Exception:
+        return []
+
+    rows = result.get("values", [])
+    if len(rows) < 2:
+        return []
+
+    header = rows[0]
+    out: list[dict] = []
+    for row in rows[1:]:
+        padded = row + [""] * (len(header) - len(row))
+        out.append(dict(zip(header, padded)))
+    return out

@@ -123,7 +123,7 @@ def apply_troas_adgroup_change(
     """Apply a tROAS change at the ad group level (Standard Shopping campaigns).
 
     Used when the campaign does not have a campaign-level target_roas override
-    and tROAS is managed per ad group. Mutates ad_group.target_roas.target_roas.
+    and tROAS is managed per ad group. Mutates the plain double ad_group.target_roas.
 
     current_target_roas_pct and proposed_target_roas_pct are in display percentage
     form (e.g. 1000.0 for 1000%). They are divided by 100 before being sent to the
@@ -141,8 +141,10 @@ def apply_troas_adgroup_change(
         ad_group.resource_name = ad_group_service.ad_group_path(
             customer_id, ad_group_id
         )
-        ad_group.target_roas.target_roas = new_roas_decimal
-        operation.update_mask.paths.append("target_roas.target_roas")
+        # v24: AdGroup.target_roas is a plain double field (the nested
+        # target_roas.target_roas form fails with UNRECOGNIZED_FIELD).
+        ad_group.target_roas = new_roas_decimal
+        operation.update_mask.paths.append("target_roas")
 
         ad_group_service.mutate_ad_groups(
             customer_id=customer_id,

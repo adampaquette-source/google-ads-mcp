@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "google-ads": {
-      "command": "/Users/adam.paquette/.local/bin/uv",
+      "command": "${HOME}/.local/bin/uv",
       "args": ["run", "python", "-m", "mcp_server.server"]
+    },
+    "shopify-toolup": {
+      "command": "${HOME}/.local/bin/uv",
+      "args": ["run", "--directory", "${HOME}/Toolup Dropbox/Adam Paquette/MCP Servers/Shopify-Klaviyo MCP/toolup-themes/mcp", "python", "server.py"]
     }
   }
 }

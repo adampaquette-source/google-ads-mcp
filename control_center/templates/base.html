@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ads Control Center</title>
+<link rel="stylesheet" href="/static/tabler.min.css">
+<script src="/static/htmx.min.js"></script>
+<style>
+  .spark svg polyline { stroke: var(--tblr-primary); }
+  .adgroup-row td:first-child { padding-left: 2.6rem; }
+  .stage-input { width: 6.5rem; }
+  td .form-control, td .btn { min-height: calc(1.4em + 0.5rem); }
+  .metric-main { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+  .metric-sub { font-size: 0.78rem; color: var(--tblr-secondary); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-bs-theme="dark">
+<header class="navbar navbar-expand-md sticky-top d-print-none" style="z-index: 5">
+  <div class="container-xl">
+    <h1 class="navbar-brand me-3 mb-0">Ads Control Center</h1>
+    <ul class="navbar-nav me-auto">
+      <li class="nav-item"><a class="nav-link" href="/">Queue</a></li>
+      <li class="nav-item">
+        <a class="nav-link" href="/review">Review
+          {% if staged_count %}<span class="badge bg-green-lt ms-1">{{ staged_count }}</span>{% endif %}
+        </a>
+      </li>
+      <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
+    </ul>
+    <span class="text-secondary small me-3">{% block headmeta %}{% endblock %}</span>
+    <form method="post" action="/pull" class="m-0">
+      <button class="btn btn-sm btn-ghost-secondary" title="Pulls fresh data for all accounts; takes about a minute">Refresh data</button>
+    </form>
+  </div>
+</header>
+<div class="page-wrapper">
+  <div class="page-body">
+    <div class="container-xl">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+<script src="/static/tabler.min.js" defer></script>
+</body>
+</html>

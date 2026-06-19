@@ -210,6 +210,7 @@ Digest content is **written by Claude via the Anthropic API**, not hand-template
 | `DIGEST_SOP.md` | Rationale. WHY behind the skill: edge case explanations, tier logic detail, build stack context. | When modifying digest tooling or investigating unexpected output. Update when rationale or edge cases change. |
 | `ads_mcp/reporting/troas_audit.py` | tROAS audit logic. Proposal generation, drift thresholds, step bands, rollback check. | Every session touching tROAS tools. |
 | `ads_mcp/proposals/troas.py` | tROAS apply logic. Google Ads mutate call for target_roas.target_roas. | When modifying the write operation or adding rollback apply. |
+| `ads_mcp/creation/shopping.py` | Standard Shopping campaign creation (propose/get/commit), mirroring `pmax.py`. Maximize Conversions, gated to a feed custom_label, PAUSED, optional `pause_campaign_ids`. Used for cold-account Stage 1 learning. | Any session building or modifying Standard Shopping campaigns. Read `GOOGLE_ADS_API_REFERENCE.md` §12 first. |
 | `GOOGLE_ADS_API_REFERENCE.md` | API reference. GAQL syntax, field names, quota rules, write operation structure. | Any session touching `ads_mcp/` or `mcp_server/`. |
 | `GCHAT_CARD_SCHEMA.md` | Google Chat card schema. Widget types, color token palette, DigestCardData schema, formatting preferences log, and the v2 upgrade plan. | Any session touching `ads_mcp/notify.py`, digest output, or any Chat notification. Update when a formatting preference is discovered or changed. |
 | `stores_mapping.json` | Store registry. Authoritative 1-to-1 map of shopify_key to ads_customer_id for all 18 stores. | Any session joining Shopify and Google Ads data. Update when a store is added, removed, or renamed. |
@@ -219,6 +220,12 @@ Digest content is **written by Claude via the Anthropic API**, not hand-template
 | `PMAX_BRAND_BREAKOUT_SKILL.md` | PMax brand breakout skill. Parameterized execution: brand analytics, Ahrefs research, copy + settings, image prep, propose, commit. Has explicit `🛑 PAUSE FOR ADAM` checkpoints. Inherits rules from `CAMPAIGN_CREATION_BEST_PRACTICES.md`. | When executing a brand breakout campaign creation task. |
 | `PMAX_IMAGE_BEST_PRACTICES.md` | Evergreen PMax image creative guide. ~10 images per asset group target. Sourcing priority (existing assets, Shopify MCP, manufacturer, other sellers, general web, then generation). Mandatory direct-image-link rule for any generation prompt. Hero product rule. 3-prompt supplement structure. Per-campaign folder convention and manifest schema. | Any campaign creation task that needs new image assets or image prompts. Update when new creative findings or preferences are discovered. |
 | `campaign_assets/` (directory) | Local working storage for per-campaign artifacts. Structure: `campaign_assets/<campaign_slug>/PROPOSAL.md` + per-asset-group `<slug>/{sourced,generated}/` + `manifest.md`. PROPOSAL.md is the required human-readable working artifact (header table, per-step sections, checkpoint markers, outstanding items, revision log -- see `CAMPAIGN_CREATION_BEST_PRACTICES.md` § Required: PROPOSAL.md). Gitignored except the README. | Created and populated by every campaign creation skill -- PROPOSAL.md is initialized right after the initial data pull and maintained through every revision. Adam reads PROPOSAL.md at every pause checkpoint. |
+| `CONTROL_CENTER_SPEC.md` | Ads Control Center spec AND ops runbook. Locked requirements (2026-06-09), architecture, data model, detector thresholds, deploy/restart commands. v1 is BUILT: launchd service, dashboard at localhost:8770. | Any session touching `control_center/` or the flag/alert/commit workflow. Update when a requirement or threshold changes. |
+| `control_center/` (directory) | The control center code: `shopify.py` (store registry + net sales), `store.py` (SQLite + pulls), `detectors.py` (tROAS drift / budget cap / spend anomaly), `app.py` (web UI + commit path), `scheduler.py`, `alerts.py`. Runs as a deployed copy under `~/Library/Application Support/ads-control-center/` -- after editing, redeploy with `scripts/install_control_center.sh`. | Any control center change. Read `CONTROL_CENTER_SPEC.md` first. |
+| `PPC_ADVISOR.md` | The Google Ads / PPC advisor persona AND canonical evergreen optimization knowledge (diagnosis framework, learning-phase rules, budget-for-learning math, channel selection, feed curation, staged rollout, failure modes). Also defines the per-account markdown system (NOTES.md + STATE.md), the account registry, and the maintenance / self-improvement rules for it. | At the start of any campaign or account optimization session. Update evergreen best practices only after consulting Adam. |
+| `<account-slug>/NOTES.md` | Per-account durable facts and standing rules (identifiers, store identity, economics, hard rules, quirks, known data gaps). Authoritative reference for the account. One per account folder. | Any session optimizing that account. Update when an account fact changes; bump the date. |
+| `<account-slug>/STATE.md` | Per-account live working state (current stage, what is live, what is proposed, last/next action, open questions, changelog). Fast-changing. One per account folder. | Any session optimizing that account. Update after every working session on it. |
+| `pro-work-supply/` (directory) | PWS account project: `NOTES.md` (durable facts), `STATE.md` (working state), `DECISIONS.md` (ratified D1-D16 log), `STAGE1_PROPOSAL.md` (staged plan + ~60-SKU roster), `HANDOFF.md` (original onboarding brief). Account never converted; Stage 1 learning plan ratified, nothing pushed. | Any session touching Pro Work Supply (`1532947017`). |
 | `Google_Ads_MCP_Scoping.docx` | Original scoping rationale. Background only. | Rarely -- only if re-evaluating architecture. |
 
 Scheduled tasks read `DIGEST_SKILL.md` at runtime. They are thin wrappers:
@@ -242,7 +249,8 @@ When tasked with a change, use this table to find every file that needs updating
 | New or removed store | `stores_mapping.json` + `DIGEST_SKILL.md` (store mapping table) + `DIGEST_SOP.md` (Shopify stores mapping section) |
 | Store edge case behavior | `DIGEST_SKILL.md` (edge cases section in Step 5) + `DIGEST_SOP.md` (Known edge cases section) |
 | New MCP tool | `ads_mcp/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (if new GAQL queries) |
-| New or modified campaign creation tool | `ads_mcp/creation/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (sections 10-11) |
+| New or modified campaign creation tool | `ads_mcp/creation/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (sections 10-12; §12 = Standard Shopping) |
+| DataFeedWatch lookup table / feed custom_label change | Use the `update_dfw_lookup_table` MCP tool (writes the `DFW_LOOKUP_SHEET_ID` Google Sheet that DFW reads). Code: `ads_mcp/sheets.py` (`write_dfw_lookup_table`) + `mcp_server/server.py`. NEVER set the label via the Shopify Google app or a Merchant Center supplemental feed -- DFW overwrites those. |
 | Evergreen / task-agnostic campaign creation finding (copy rule, pre-flight step, failure mode, store-level fact, etc.) | `CAMPAIGN_CREATION_BEST_PRACTICES.md` (canonical) -- after consulting Adam per the self-improvement rule in that file |
 | PMax image creative finding or preference (sourcing, prompts, mix, anti-patterns) | `PMAX_IMAGE_BEST_PRACTICES.md` (canonical) + any active campaign creation skill that references it (e.g. `PMAX_BRAND_BREAKOUT_SKILL.md`) |
 | New campaign-type skill needed | Create `<TYPE>_SKILL.md` + register it in the skill registry table inside `CAMPAIGN_CREATION_BEST_PRACTICES.md` + add a row to the file index in this file (`CLAUDE.md`) |
@@ -257,6 +265,13 @@ When tasked with a change, use this table to find every file that needs updating
 | Digest step sequence | `DIGEST_SKILL.md` (step order) + `DIGEST_SOP.md` (tool sequence section) |
 | Google Sheets tab structure or formatting | `ads_mcp/sheets.py` + `DIGEST_SOP.md` (Google Sheets dashboard section) |
 | Display preference (format, units, labels) | `CONSULTATION_RESULTS.md` (Reporting Display Preferences) + whichever files implement the preference |
+| Control center detector threshold (drift %, cap ratio/days, anomaly z, tier rules) | `control_center/detectors.py` (constants at top) + `CONTROL_CENTER_SPEC.md` (detector table). Redeploy via `scripts/install_control_center.sh`. |
+| Control center pull times or alert channel | `control_center/scheduler.py` (PULL_TIMES) / `control_center/alerts.py` + `CONTROL_CENTER_SPEC.md`. Redeploy after change. |
+| Control center UI or commit flow | `control_center/app.py` + `control_center/templates/` + `CONTROL_CENTER_SPEC.md`. Redeploy after change. |
+| Evergreen / account-agnostic PPC optimization finding (diagnosis, bidding, budget-for-learning, channel choice, feed curation, staging, failure mode) | `PPC_ADVISOR.md` (Retained best practices) -- after consulting Adam per the self-improvement rule in that file |
+| Account durable fact or important note changed (identifiers, brand, economics, breakeven, quirk, hard rule, data gap) | `<account-slug>/NOTES.md` (bump the date) |
+| Account working state changed (stage, what is live, what is proposed, next action, open question) | `<account-slug>/STATE.md` (bump the date, add a changelog line) |
+| New account taken on as an optimization project | Create `<account-slug>/` with `NOTES.md` + `STATE.md` from the templates in `PPC_ADVISOR.md` + add a row to the account registry in `PPC_ADVISOR.md` |
 
 ---
 
@@ -269,6 +284,23 @@ Key reminders inline:
 - Tier 1 (Toolup, Red Tool Store, top 3 by spend): per-campaign detail on all alerts.
 - Tier 2/3: account-level only unless drift > 30% or actual ROAS = 0.
 - No em dashes. Digest Chat messages use cardsV2 format -- see GCHAT_CARD_SCHEMA.md.
+
+## When working on campaign or account optimization (any session diagnosing, restructuring, tuning bidding/budgets, or standing up / optimizing an account)
+
+**Read `PPC_ADVISOR.md` first and adopt the advisor persona it defines.** It is the canonical, evergreen PPC optimization knowledge (diagnosis framework, learning-phase rules, budget-for-learning math, channel selection, feed curation, staged rollout, failure modes) and the home of the per-account markdown system.
+
+Then read the target account's per-account files before touching anything:
+- `<account-slug>/NOTES.md` -- durable facts, economics, hard rules, quirks, data gaps.
+- `<account-slug>/STATE.md` -- current stage, what is live, what is proposed, next action, open questions.
+- any `<account-slug>/DECISIONS.md` and proposal docs in that folder.
+
+If the account has no folder yet, create one with `NOTES.md` and `STATE.md` from the templates in `PPC_ADVISOR.md` and add it to the account registry before doing the work.
+
+Hard rules carried inline so they cannot be missed:
+- **No account change without Adam's explicit approval.** Diagnose and propose first; everything is a proposal until he says go.
+- **Diagnose before prescribing.** Pull account history and verify conversion tracking is firing before concluding an account "cannot convert."
+- **Match the bid strategy to the conversion history.** A Target ROAS on a cold account starves it; cold accounts learn on Maximize Conversions first.
+- **Update `STATE.md` after every working session**, and promote evergreen lessons to `PPC_ADVISOR.md` only after consulting Adam.
 
 ## When working on campaign creation (any session touching ads_mcp/creation/ or mcp_server/ creation tools, or any campaign build)
 
@@ -307,10 +339,14 @@ Two Shopify MCP servers may be available in a session:
 
 | Server | Type | Tools prefix | Use? |
 |---|---|---|---|
-| `shopify-toolup` (local, `~/.claude/.mcp.json`) | Local stdio, API keys for all 18 stores | `shopify_*` (e.g. `shopify_search_products`, `shopify_query_sales`) | **YES -- always use this one** |
+| `shopify-toolup` (local, project `.mcp.json`) | Local stdio, API keys for all 18 stores | `mcp__shopify-toolup__shopify_*` (e.g. `shopify_search_products`, `shopify_get_product_sales`) | **YES -- always use this one** |
 | `claude.ai Shopify` (cloud) | Cloud-hosted, OAuth per-store | `mcp__claude_ai_Shopify__*` | **NO -- never call these tools** |
 
 **Rule:** Never call any `mcp__claude_ai_Shopify__*` tool. Always use the local `shopify-toolup` server's `shopify_*` tools for all Shopify operations (product search, analytics, collections, metafields, etc.). The local server already has API access to all 18 stores and does not require per-session OAuth authorization.
+
+**Registration (this machine, added 2026-06-17):** the server is in this project's `.mcp.json` as `shopify-toolup`, running `uv run --directory "${HOME}/Toolup Dropbox/Adam Paquette/MCP Servers/Shopify-Klaviyo MCP/toolup-themes/mcp" python server.py`. The actual server code and its `.env` live in that theme-repo `mcp/` directory; `.env` is loaded by absolute path so CWD does not matter. A new MCP server only loads at session start, so after adding it you must restart the Claude Code session (and approve the new project server when prompted).
+
+**Troubleshooting "Shopify won't connect / needs kickstarting":** the usual cause is a stale `.venv` in `.../toolup-themes/mcp/` whose Python symlink points at a removed interpreter, so the stdio subprocess fails to launch. Fix by rebuilding it once: `uv run --directory "${HOME}/Toolup Dropbox/Adam Paquette/MCP Servers/Shopify-Klaviyo MCP/toolup-themes/mcp" python -c "import server"` (uv recreates the venv and installs deps), then restart the session. A stray unused `shopify_mcp/.env` copy exists at this project root; it is not read by the server and can be ignored.
 
 ## What NOT to do
 
@@ -321,3 +357,13 @@ Two Shopify MCP servers may be available in a session:
 - Don't bypass the audit log
 - Don't deploy to Cloud Run from a local machine without first running tests
 - Don't call `mcp__claude_ai_Shopify__*` tools (use local `shopify-toolup` server instead)
+
+## Account optimization markdown system: maintenance and self-improvement
+
+The advisor knowledge in `PPC_ADVISOR.md` and the per-account `NOTES.md` / `STATE.md` files are a living system. Keep them current, or they rot into noise. Standing rules:
+
+- **`STATE.md` is updated after every working session on an account.** Refresh the current stage, last action, next action, open questions, and add a dated changelog line. Stale state is worse than none.
+- **Durable account facts go in that account's `NOTES.md`** (identifiers, economics, breakeven, quirks, data gaps, hard rules) and the date gets bumped.
+- **Genuinely evergreen, account-agnostic PPC lessons go in `PPC_ADVISOR.md`** under Retained best practices, **but only after consulting Adam.** Do not silently rewrite best practices. Propose the addition, say why it is evergreen, append on confirmation. This mirrors the self-improvement rule in `CAMPAIGN_CREATION_BEST_PRACTICES.md`.
+- **Taking on a new account as a project** means: create `<account-slug>/` with `NOTES.md` + `STATE.md` from the templates in `PPC_ADVISOR.md`, then add a row to the account registry in `PPC_ADVISOR.md`.
+- **Keep the account registry in `PPC_ADVISOR.md` in sync** (status and last-touched columns) as work progresses.

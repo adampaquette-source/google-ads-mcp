@@ -249,7 +249,7 @@ TROAS_AUDIT_ADGROUP = """
         campaign.target_roas.target_roas,
         ad_group.id,
         ad_group.name,
-        ad_group.target_roas.target_roas,
+        ad_group.target_roas,
         metrics.cost_micros,
         metrics.conversions,
         metrics.conversions_value
@@ -259,8 +259,11 @@ TROAS_AUDIT_ADGROUP = """
       AND campaign.bidding_strategy_type = TARGET_ROAS
       AND ad_group.status = ENABLED
 """
-# Note: ad_group.target_roas.target_roas is not filterable in GAQL.
-# Python caller filters to rows where ag.target_roas.target_roas > 0.
+# Note: the ad group field is the plain double ad_group.target_roas. The nested
+# ad_group.target_roas.target_roas form fails on v24 with UNRECOGNIZED_FIELD --
+# that bug silently disabled ad-group delegation in the audit until 2026-06-10
+# (the per-account try/except swallowed it). It is not filterable in GAQL;
+# Python caller filters to rows where ad_group.target_roas > 0.
 
 # Used by check_rollback_flags: conversions per campaign for an explicit date window.
 # Caller filters results to the specific campaign IDs being monitored.
@@ -271,6 +274,51 @@ TROAS_CONVERSION_WINDOW = """
     FROM campaign
     WHERE {date_clause}
       AND campaign.status != REMOVED
+"""
+
+# ---------------------------------------------------------------------------
+# Control center (daily history pulls)
+# ---------------------------------------------------------------------------
+
+# Used by control_center.store: one row per campaign per day. Powers the
+# daily_metrics table (backfill and scheduled pulls). budget and tROAS fields
+# reflect CURRENT campaign config at pull time, not historical values.
+DAILY_CAMPAIGN_METRICS = """
+    SELECT
+        segments.date,
+        campaign.id,
+        campaign.name,
+        campaign.status,
+        campaign.advertising_channel_type,
+        campaign.bidding_strategy_type,
+        campaign.target_roas.target_roas,
+        campaign.maximize_conversion_value.target_roas,
+        campaign_budget.id,
+        campaign_budget.amount_micros,
+        metrics.cost_micros,
+        metrics.conversions,
+        metrics.conversions_value
+    FROM campaign
+    WHERE {date_clause}
+      AND campaign.status != REMOVED
+"""
+
+# Used by control_center.store: which ENABLED campaigns have ad groups with
+# their own tROAS (Standard Shopping pattern). Those campaigns must not get
+# campaign-level tROAS suggestions. In v24 the field is the plain double
+# ad_group.target_roas (NOT ad_group.target_roas.target_roas -- that nested
+# form is what TROAS_AUDIT_ADGROUP uses and it fails on v24 with
+# UNRECOGNIZED_FIELD; see the note on that query). Not GAQL-filterable; the
+# Python caller filters to rows where it is > 0.
+ADGROUP_TROAS_PRESENCE = """
+    SELECT
+        campaign.id,
+        ad_group.id,
+        ad_group.target_roas
+    FROM ad_group
+    WHERE campaign.status = ENABLED
+      AND ad_group.status = ENABLED
+      AND campaign.bidding_strategy_type = TARGET_ROAS
 """
 
 # ---------------------------------------------------------------------------

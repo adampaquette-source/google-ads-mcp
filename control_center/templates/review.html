@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block headmeta %}{{ staged | length }} staged change(s){% endblock %}
+{% block content %}
+
+{% if not staged %}
+<div class="card"><div class="card-body text-secondary">
+  Nothing staged. Go back to the <a href="/">queue</a> and stage changes first.
+</div></div>
+{% else %}
+<div class="card mb-3">
+  <div class="card-header py-2"><h3 class="card-title mb-0">Staged changes: review before commit</h3></div>
+  <div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table">
+    <thead>
+      <tr>
+        <th>Account</th><th>Campaign / ad group</th><th>Type</th>
+        <th>Current</th><th>New</th><th>Delta</th><th>Flags</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in staged %}
+    <tr>
+      <td>{{ s.account_name }}</td>
+      <td>
+        <strong>{{ s.campaign_name }}</strong>
+        {% if s.ad_group_name %}<div class="text-secondary small">&#8627; {{ s.ad_group_name }}</div>{% endif %}
+      </td>
+      <td>{{ 'Daily budget' if s.change_type == 'budget' else ('Ad group tROAS' if s.change_type == 'troas_adgroup' else 'tROAS') }}</td>
+      <td>{{ s.current_value }}{{ '%' if s.change_type != 'budget' else '' }}</td>
+      <td><strong>{{ s.new_value }}{{ '%' if s.change_type != 'budget' else '' }}</strong></td>
+      <td>{{ '%+.1f' % (s.new_value - (s.current_value or 0)) }}</td>
+      <td>{% if s.cooldown_override %}<span class="badge bg-red-lt">cooldown override</span>{% endif %}</td>
+      <td>
+        <form method="post" action="/staged/{{ s.id }}/discard" class="m-0">
+          <button class="btn btn-sm btn-ghost-secondary">Discard</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<form method="post" action="/commit"
+      onsubmit="return confirm('Commit {{ staged | length }} change(s) to Google Ads?')">
+  <button class="btn btn-primary">Commit {{ staged | length }} change(s) to Google Ads</button>
+</form>
+<p class="text-secondary small mt-2">
+  Every change is audit logged before and after the API call, and appended to the
+  shared tROAS / Budget Log tabs so audit cooldowns stay in sync.
+</p>
+{% endif %}
+
+{% endblock %}

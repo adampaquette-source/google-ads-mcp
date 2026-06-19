@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block headmeta %}Commit results{% endblock %}
+{% block content %}
+
+<div class="card mb-3">
+  <div class="card-header py-2"><h3 class="card-title mb-0">Commit results</h3></div>
+  <div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table">
+    <thead><tr><th>Campaign / ad group</th><th>Type</th><th>Change</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in results %}
+    <tr>
+      <td>
+        <strong>{{ r.campaign_name }}</strong>
+        {% if r.ad_group_name %}<div class="text-secondary small">&#8627; {{ r.ad_group_name }}</div>{% endif %}
+      </td>
+      <td>{{ 'Daily budget' if r.change_type == 'budget' else ('Ad group tROAS' if r.change_type == 'troas_adgroup' else 'tROAS') }}</td>
+      <td>{{ r.current_value }} to {{ r.new_value }}</td>
+      <td>
+        {% if r.ok %}<span class="badge bg-green-lt">Applied</span>
+        {% else %}<span class="badge bg-red-lt">Failed</span> <span class="text-danger small">{{ r.error }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% for e in sheet_errors %}
+<div class="alert alert-warning">{{ e }} The Google Ads change itself was applied; only the shared log append failed. Add the row manually or re-check Sheets access.</div>
+{% endfor %}
+
+<a class="btn" href="/">Back to queue</a>
+
+{% endblock %}

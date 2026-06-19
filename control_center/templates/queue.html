@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block headmeta %}
+  {% if last_pull %}last pull {{ (last_pull.finished_at or last_pull.started_at)[:16] | replace('T', ' ') }}{% endif %}
+{% endblock %}
+{% block content %}
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'performance' %}active{% endif %}" href="/?tab=performance{% if show_snoozed %}&snoozed=1{% endif %}">
+      Performance <span class="badge bg-azure-lt ms-1">{{ tab_counts.performance }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'budgets' %}active{% endif %}" href="/?tab=budgets{% if show_snoozed %}&snoozed=1{% endif %}">
+      Budgets <span class="badge bg-azure-lt ms-1">{{ tab_counts.budgets }}</span>
+    </a>
+  </li>
+  <li class="nav-item ms-auto">
+    <span class="nav-link disabled pe-0">
+      {% if snoozed_count and not show_snoozed %}<a href="/?tab={{ tab }}&snoozed=1">{{ snoozed_count }} snoozed</a>{% endif %}
+      {% if show_snoozed %}<a href="/?tab={{ tab }}">hide snoozed</a>{% endif %}
+    </span>
+  </li>
+</ul>
+
+{% if not accounts %}
+<div class="card"><div class="card-body text-secondary">
+  No open flags on this tab. Either everything is healthy or the data needs a refresh.
+</div></div>
+{% endif %}
+
+{% for acct in accounts %}
+<div class="card mb-3">
+  <div class="card-header py-2">
+    <h3 class="card-title mb-0">{{ acct.name }}</h3>
+    <div class="ms-3 d-flex gap-2">
+      <span class="badge {% if acct.tier == 1 %}bg-indigo-lt{% else %}bg-secondary-lt{% endif %}">Tier {{ acct.tier }}</span>
+      {% if acct.mer and acct.mer.mer is not none %}
+        {% set merclass = {'Strong': 'bg-green-lt', 'Good': 'bg-teal-lt', 'Watch': 'bg-yellow-lt', 'Poor': 'bg-red-lt'}[acct.mer.status] %}
+        <span class="badge {{ merclass }}">MER {{ acct.mer.mer }}% ({{ acct.mer.status }})</span>
+      {% elif acct.mer %}
+        <span class="badge bg-secondary-lt">{{ acct.mer.status }}</span>
+      {% endif %}
+    </div>
+    <span class="card-subtitle ms-auto mb-0">{{ acct.customer_id }}</span>
+  </div>
+  <div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table">
+    <thead>
+      <tr>
+        <th style="width:32%">Campaign / flag</th>
+        <th>Key metric</th>
+        <th>Trend (30d spend)</th>
+        <th>Change</th>
+        <th>Snooze</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for f in acct.flags %}
+    <tr id="flag-{{ f.id }}" {% if f.status == 'snoozed' %}class="text-secondary"{% endif %}>
+      <td>
+        <span class="status-dot {% if f.severity == 'high' %}status-dot-animated bg-red{% elif f.severity == 'medium' %}bg-yellow{% else %}bg-secondary{% endif %} me-2"></span>
+        <strong>{{ f.payload.campaign_name }}</strong>
+        <div class="small mt-1">
+          {% if f.type == 'troas_drift' %}
+            <span class="badge bg-azure-lt">tROAS drift {{ f.payload.drift_pct }}%</span>
+          {% elif f.type == 'spend_anomaly' %}
+            <span class="badge bg-orange-lt">Spend anomaly (z = {{ f.payload.z_score }})</span>
+          {% elif f.type == 'budget_constrained' %}
+            <span class="badge bg-red-lt">Overpacing | {{ f.payload.days_at_threshold }}/7 days at cap</span>
+          {% elif f.type == 'budget_excess' %}
+            <span class="badge bg-cyan-lt">Underpacing | {{ f.payload.utilization_pct }}% utilization</span>
+          {% else %}
+            <span class="badge bg-secondary-lt">{{ f.type_label }}</span>
+          {% endif %}
+          {% if f.status == 'snoozed' %}<span class="text-secondary">snoozed until {{ f.snooze_until[:10] }}</span>{% endif %}
+        </div>
+      </td>
+      <td>
+        {% if f.type == 'troas_drift' %}
+          <div class="metric-main">{{ f.payload.l7_actual_roas_pct }}% <span class="text-secondary">vs</span> {{ f.payload.current_troas_pct }}% <span class="text-secondary">target</span></div>
+          <div class="metric-sub">${{ '{:,.0f}'.format(f.l7_spend) }} L7 spend | ${{ '{:,.0f}'.format(f.l7_revenue) }} L7 rev</div>
+        {% elif f.type in ('budget_constrained', 'budget_excess') %}
+          <div class="metric-main">${{ '{:,.0f}'.format(f.payload.daily_budget) }}<span class="text-secondary">/day budget</span></div>
+          <div class="metric-sub"><span class="{% if f.type == 'budget_constrained' %}text-danger{% else %}text-info{% endif %}">${{ '{:,.0f}'.format(f.l7_spend / 7) }}/day L7 avg</span> | ROAS {{ f.payload.l7_roas_pct }}%</div>
+        {% else %}
+          <div class="metric-main">${{ '{:,.0f}'.format(f.payload.spend) }} <span class="text-secondary">yesterday vs</span> ${{ '{:,.0f}'.format(f.payload.baseline_mean) }} <span class="text-secondary">baseline</span></div>
+          <div class="metric-sub">${{ '{:,.0f}'.format(f.l7_spend) }} L7 spend | ${{ '{:,.0f}'.format(f.l7_revenue) }} L7 rev</div>
+        {% endif %}
+      </td>
+      <td class="spark">{{ f.spark | safe if f.spark else '' }}</td>
+      <td>
+        {% if f.is_staged %}
+          <span class="badge bg-green-lt">Staged</span>
+        {% elif f.type == 'troas_drift' and f.payload.adgroup_managed %}
+          <span class="text-secondary small">per ad group below</span>
+        {% elif f.type == 'troas_drift' and f.payload.suggested_troas_pct %}
+          <form class="d-flex gap-1 align-items-center" hx-post="/flags/{{ f.id }}/stage" hx-target="this" hx-swap="outerHTML">
+            <input type="number" name="new_value" step="5" value="{{ f.payload.suggested_troas_pct }}" class="form-control form-control-sm stage-input">
+            <span class="text-secondary small">%</span>
+            <button class="btn btn-sm">Stage</button>
+          </form>
+        {% elif f.type in ('budget_constrained', 'budget_excess') and f.payload.suggested_budget %}
+          <form class="d-flex gap-1 align-items-center" hx-post="/flags/{{ f.id }}/stage" hx-target="this" hx-swap="outerHTML">
+            <span class="text-secondary small">$</span>
+            <input type="number" name="new_value" step="5" value="{{ f.payload.suggested_budget }}" class="form-control form-control-sm stage-input">
+            <button class="btn btn-sm">Stage</button>
+          </form>
+        {% elif f.type == 'spend_anomaly' %}
+          <span class="text-secondary small">investigate (no write)</span>
+        {% else %}
+          <span class="text-secondary small">review only</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-list flex-nowrap">
+          {% for d in [1, 3, 7] %}
+          <button class="btn btn-sm btn-ghost-secondary px-2" hx-post="/flags/{{ f.id }}/snooze?days={{ d }}"
+                  hx-target="#flag-{{ f.id }}" hx-swap="outerHTML">{{ d }}d</button>
+          {% endfor %}
+        </div>
+      </td>
+      <td>
+        <button class="btn btn-sm btn-ghost-secondary" hx-get="/flags/{{ f.id }}/detail"
+                hx-target="#detail-{{ f.id }}" hx-swap="innerHTML">Detail</button>
+      </td>
+    </tr>
+    {% if f.type == 'troas_drift' and f.payload.adgroup_managed %}
+      {% for ag in f.payload.adgroups %}
+      <tr class="adgroup-row {% if not ag.triggers %}text-secondary{% endif %}">
+        <td>
+          <span class="text-secondary">&#8627;</span> {{ ag.ad_group_name }}
+          <div class="text-secondary small">drift {{ ag.drift_pct }}%</div>
+        </td>
+        <td>
+          <div class="metric-main">{{ ag.l7_actual_roas_pct }}% <span class="text-secondary">vs</span> {{ ag.current_troas_pct }}% <span class="text-secondary">target</span></div>
+          <div class="metric-sub">${{ '{:,.0f}'.format(ag.l7_spend) }} L7 spend | ${{ '{:,.0f}'.format(ag.l7_conv_value) }} L7 rev</div>
+        </td>
+        <td></td>
+        <td>
+          {% if ag.ad_group_id in f.staged_adgroup_ids %}
+            <span class="badge bg-green-lt">Staged</span>
+          {% else %}
+          <form class="d-flex gap-1 align-items-center" hx-post="/flags/{{ f.id }}/stage" hx-target="this" hx-swap="outerHTML">
+            <input type="hidden" name="ad_group_id" value="{{ ag.ad_group_id }}">
+            <input type="number" name="new_value" step="5" value="{{ ag.suggested_troas_pct or ag.current_troas_pct }}" class="form-control form-control-sm stage-input">
+            <span class="text-secondary small">%</span>
+            <button class="btn btn-sm">Stage</button>
+          </form>
+          {% endif %}
+        </td>
+        <td colspan="2"></td>
+      </tr>
+      {% endfor %}
+    {% endif %}
+    <tr><td colspan="6" id="detail-{{ f.id }}" class="p-0 border-0"></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endfor %}
+
+{% if staged_count %}
+<div class="card position-sticky bottom-0 mt-3" style="z-index: 4">
+  <div class="card-body py-2 d-flex align-items-center gap-3">
+    <strong>{{ staged_count }} change(s) staged.</strong>
+    <a class="btn btn-primary btn-sm" href="/review">Review and commit</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

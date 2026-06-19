@@ -1,0 +1,12 @@
+<div class="alert alert-warning mb-0 py-2">
+  <div class="small">
+    Cooldown: this campaign was {{ reason }} (within the {{ cooldown_days }}-day window).
+    Stacking tROAS changes before the last one settles makes attribution of results impossible.
+  </div>
+  <form class="mt-2 m-0" hx-post="/flags/{{ flag_id }}/stage" hx-target="this" hx-swap="outerHTML">
+    <input type="hidden" name="new_value" value="{{ new_value }}">
+    <input type="hidden" name="ad_group_id" value="{{ ad_group_id or '' }}">
+    <input type="hidden" name="override" value="1">
+    <button class="btn btn-sm btn-outline-danger">Stage anyway (recorded as override)</button>
+  </form>
+</div>

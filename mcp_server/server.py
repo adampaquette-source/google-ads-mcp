@@ -32,6 +32,14 @@ from ads_mcp.creation.pmax import (
     get_pmax_proposal,
     propose_pmax_campaign,
 )
+from ads_mcp.creation.shopping import (
+    ShoppingCreationResult,
+    ShoppingProposal,
+    StandardShoppingConfig,
+    commit_standard_shopping_campaign,
+    get_shopping_proposal,
+    propose_standard_shopping_campaign,
+)
 from ads_mcp.reporting.health import (
     AnomalyResult,
     BudgetPacingResult,
@@ -83,6 +91,8 @@ from ads_mcp.sheets import (
     write_budget_proposals,
     read_budget_decisions,
     append_budget_log,
+    write_dfw_lookup_table,
+    read_dfw_lookup_table,
 )
 
 mcp: FastMCP = FastMCP("google-ads")
@@ -1276,6 +1286,120 @@ def commit_google_ads_pmax_campaign(proposal_id: str) -> PMaxCreationResult:
     Returns: campaign_resource_name, asset_group_resource_names, status="created_paused".
     """
     return commit_pmax_campaign(get_client(), proposal_id)
+
+
+# ---------------------------------------------------------------------------
+# DataFeedWatch lookup table tools
+# ---------------------------------------------------------------------------
+
+def _dfw_sheet_id() -> str:
+    sid = os.environ.get("DFW_LOOKUP_SHEET_ID", "").strip()
+    if not sid:
+        raise EnvironmentError(
+            "DFW_LOOKUP_SHEET_ID is not set. Create a Google Sheet, share it as Editor "
+            "with mcp-server@adam-mcp-496818.iam.gserviceaccount.com, add its ID to .env "
+            "as DFW_LOOKUP_SHEET_ID, then connect that sheet in DataFeedWatch as a lookup source."
+        )
+    return sid
+
+
+@mcp.tool()
+def update_dfw_lookup_table(rows: list[dict], tab: str = "Sheet1", clear: bool = True) -> dict:
+    """Overwrite a DataFeedWatch lookup-table tab in the configured Google Sheet.
+
+    DataFeedWatch reads this sheet as a lookup table: it matches a feed field
+    (e.g. `sku`) against a column here and pulls another column (e.g. custom_label_0).
+    Apply feed attribute changes here, NOT in the Shopify Google app or a Merchant
+    Center supplemental feed, or DFW will overwrite them.
+
+    rows: list of flat dicts that all share the same keys. The keys become the
+          header row in column order, e.g.
+          [{"sku": "835470", "custom_label_0": "pws_stage1_3m"}, ...].
+    tab: the sheet tab to write (created if missing). Use one tab per lookup.
+    clear: overwrite the whole tab (default). Set False to leave other cells intact.
+
+    Requires DFW_LOOKUP_SHEET_ID in .env. Returns the tab URL and row count.
+    """
+    url = write_dfw_lookup_table(rows, _dfw_sheet_id(), tab=tab, clear=clear)
+    return {"tab": tab, "rows_written": len(rows), "sheet_url": url}
+
+
+@mcp.tool()
+def get_dfw_lookup_table(tab: str = "Sheet1") -> list[dict]:
+    """Read back a DataFeedWatch lookup-table tab as a list of header-keyed dicts.
+
+    tab: the sheet tab to read. Returns an empty list if the tab is missing or empty.
+    Requires DFW_LOOKUP_SHEET_ID in .env.
+    """
+    return read_dfw_lookup_table(_dfw_sheet_id(), tab=tab)
+
+
+# ---------------------------------------------------------------------------
+# Standard Shopping campaign creation tools (propose / get / commit)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def propose_google_ads_standard_shopping_campaign(
+    customer_id: str,
+    config: dict,
+) -> ShoppingProposal:
+    """Validate a Standard Shopping campaign config and store it as a pending proposal.
+
+    IMPORTANT: This tool does NOT make any changes to Google Ads. Review the returned
+    proposal, then call commit_google_ads_standard_shopping_campaign to execute it.
+
+    Stage 1 learning setup: Standard Shopping on Maximize Conversions (no ROAS target),
+    gated to a curated roster via a feed custom_label. The campaign and ad group are
+    created PAUSED.
+
+    config must be a dict matching StandardShoppingConfig:
+      campaign_name        -- string (required)
+      daily_budget_usd     -- float, >= 1.0 (required)
+      merchant_id          -- int, Merchant Center account ID (required)
+      custom_label_value   -- string gating the roster, e.g. "pws_stage1_3m" (required)
+      custom_label_index   -- int 0-4, default 0 (custom_label_0)
+      feed_label           -- string, default "US"
+      campaign_priority    -- int 0/1/2, default 0 (Low)
+      geo_target_ids       -- list of strings, default ["2840"] (USA)
+      language_ids         -- list of strings, default ["1000"] (English)
+      ad_group_name        -- string, default "<campaign_name> Ad Group"
+      enable_search_partners -- bool, default True
+      pause_campaign_ids   -- list of campaign IDs to pause in the same commit
+                              (e.g. a starved PMax), default []
+
+    customer_id: 10-digit account ID.
+    """
+    return propose_standard_shopping_campaign(get_client(), customer_id, config)  # type: ignore[arg-type]
+
+
+@mcp.tool()
+def get_google_ads_standard_shopping_proposal(proposal_id: str) -> ShoppingProposal:
+    """Read and return a pending Standard Shopping proposal by ID for review.
+
+    proposal_id: the short ID returned by propose_google_ads_standard_shopping_campaign.
+    """
+    return get_shopping_proposal(proposal_id)
+
+
+@mcp.tool()
+def commit_google_ads_standard_shopping_campaign(proposal_id: str) -> ShoppingCreationResult:
+    """Execute a pending Standard Shopping proposal via one atomic Google Ads API call.
+
+    The campaign and ad group are created in PAUSED status. No live serving occurs
+    until the campaign is manually enabled in Google Ads. Builds budget, campaign
+    (SHOPPING, Maximize Conversions, shopping settings, networks), geo/language
+    criteria, ad group, product ad, and the listing-group tree gating to the
+    custom_label. If config.pause_campaign_ids is set, those campaigns are paused in
+    the same atomic request. Either everything applies or nothing does.
+
+    Writes a creation record to the audit log (audit.db). Marks the proposal committed.
+
+    proposal_id: the short ID returned by propose_google_ads_standard_shopping_campaign.
+
+    Returns: campaign_resource_name, ad_group_resource_name, paused_campaign_ids,
+    status="created_paused".
+    """
+    return commit_standard_shopping_campaign(get_client(), proposal_id)
 
 
 if __name__ == "__main__":
