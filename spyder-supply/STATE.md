@@ -3,7 +3,7 @@
 Last updated: 2026-06-19. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`.
 
 ## Current stage
-**Onboarding, blocked on provisioning.** Spyder Supply (Spyder brand power tool accessories) is **replacing Truck Box Outlet**; storefront live at spydersupply.com. No Google Ads account yet; the Shopify store (rebranded Truck Box Outlet) is not yet in the `shopify-toolup` server. Folder scaffolded per the advisor system. Diagnosis starts once the ads account exists under the MCC and the store key is added.
+**Onboarding -- ads account live (empty), now blocked only on the Shopify store key.** Google Ads account **`9267883382`** is created under MCC `7404361064`, ENABLED, and accessible via the service account (verified 2026-06-19: empty, no campaigns/data). Spyder brand power tool accessories, replacing Truck Box Outlet, storefront live at spydersupply.com. Remaining before diagnosis: add the (rebranded Truck Box Outlet) store to the `shopify-toolup` server and get its store key, plus margin/geo/history context.
 
 ## What is live in the account
 Nothing known yet (account not yet visible).
@@ -12,12 +12,12 @@ Nothing known yet (account not yet visible).
 Nothing yet.
 
 ## Last action
-2026-06-19: Created the account folder (NOTES.md + STATE.md) and registry row. Confirmed Spyder Supply is absent from both the MCC account list and the Shopify store list.
+2026-06-19: Confirmed the new Google Ads account `9267883382` is visible + queryable through the MCC via the service account (empty account). Recorded the customer_id in NOTES + the advisor registry.
 
 ## Next action
-Onboarding checklist (what I need before diagnosis can start):
-1. **Create the Google Ads account under the MCC** (`7404361064`) so the service account inherits access and it shares your payment profile (see the creation/billing note below). Then it appears in `list_google_ads_accounts` automatically.
-2. **Shopify:** add the store (rebranded Truck Box Outlet) to the `shopify-toolup` server's `stores.config.json` + `.env`; give me the store key.
+Onboarding checklist (what I still need before diagnosis can start):
+1. **DONE:** Google Ads account `9267883382` created under MCC `7404361064` and accessible.
+2. **Shopify:** add the store (rebranded Truck Box Outlet) to the `shopify-toolup` server's `stores.config.json` + `.env`; give me the store key. (This is the current blocker for diagnosis.)
 3. **Context:** rough margin, target geo, and whether Truck Box Outlet had any ad history / Merchant feed worth migrating or disregarding.
 Once 1-2 are done I run the standard cold-account diagnosis (trailing performance if any, conversion-tracking check, Shopify all-channel sales, Ahrefs demand) and propose a staged plan. Expect the same cold-Shopping pattern as PWS: too cold for Smart Bidding at first, so Manual CPC / Maximize Clicks to start (validate with `validate_only`).
 
@@ -28,5 +28,6 @@ Create it **from inside the MCC** (Accounts > + > Create new account) so it is n
 - All of the onboarding checklist above.
 
 ## Changelog (newest first)
+- 2026-06-19: Google Ads account `9267883382` created under the MCC and confirmed accessible (empty). Onboarding item 1 done; blocker is now the Shopify store key.
 - 2026-06-19: Added context: Spyder brand power tool accessories, replacing Truck Box Outlet, spydersupply.com live, no ads account yet. Recorded the account-creation/billing guidance.
 - 2026-06-19: Folder scaffolded; flagged as pending provisioning.

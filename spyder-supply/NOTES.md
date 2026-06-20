@@ -9,7 +9,7 @@ Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. 
 ## Identifiers
 | Thing | Value |
 |---|---|
-| Google Ads account | None yet -- to be created under MCC `7404361064` (see the billing/creation note in STATE.md) |
+| Google Ads account | **Spyder Supply, customer_id `9267883382`** -- created under MCC `7404361064`, status ENABLED, accessible via the service account (verified 2026-06-19, account empty / no campaigns). |
 | MCC login_customer_id | `7404361064` |
 | Shopify store key | TBD (the Truck Box Outlet store, rebranded; add it to the `shopify-toolup` server `stores.config.json`) |
 | Public storefront | **spydersupply.com** (live) |

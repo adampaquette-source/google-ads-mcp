@@ -172,7 +172,7 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 | Account | customer_id | Shopify key | Folder | Stage / status | Last touched |
 |---|---|---|---|---|---|
 | Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 campaign created PAUSED (Manual CPC); awaiting enable | 2026-06-19 |
-| Spyder Supply | TBD (not in MCC yet) | TBD (not in Shopify server yet) | `spyder-supply/` | Onboarding; greenfield cold store, not yet provisioned | 2026-06-19 |
+| Spyder Supply | `9267883382` | TBD (not in Shopify server yet) | `spyder-supply/` | Onboarding; ads account live (empty), awaiting Shopify store key + diagnosis | 2026-06-19 |
 
 Add a row when you begin a new account project and create its folder.
 
