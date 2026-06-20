@@ -171,8 +171,8 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 
 | Account | customer_id | Shopify key | Folder | Stage / status | Last touched |
 |---|---|---|---|---|---|
-| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 campaign created PAUSED (Manual CPC); awaiting enable | 2026-06-19 |
-| Spyder Supply | `9267883382` | TBD (not in Shopify server yet) | `spyder-supply/` | Onboarding; ads account live (empty), awaiting Shopify store key + diagnosis | 2026-06-19 |
+| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 LIVE (Manual CPC $0.55, $25/day, 3M roster); weekly ops automated | 2026-06-19 |
+| Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Onboarding; Ads + Shopify access confirmed (empty account). Awaiting margin/geo + predecessor-account `3174244337` decision, then diagnosis | 2026-06-19 |
 
 Add a row when you begin a new account project and create its folder.
 
