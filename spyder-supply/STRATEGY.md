@@ -59,6 +59,22 @@ Noise to exclude as negatives: "spyder bite/bit/bites" (low-CPC spider-game traf
 - Zero conversion history is PMax's worst-case cold start: it burns budget with no signal, is opaque (no search-term control), leans on Google's audience guesses, and cannibalizes the cheap branded traffic. Practitioner consensus is to feed PMax conversion history first. (To be confirmed/quantified by the cold-start research brief.)
 - Standard Shopping + branded Search gives transparent, cheap, controllable first-conversion generation, then graduates into Smart Bidding / PMax once the data exists -- the PWS pattern, but with far better unit economics.
 
+## Cold-start research reconciliation (2026-06-19, see COLD_START_RESEARCH.md)
+The dedicated cold-start research brief CONFIRMS this path and pins the numbers:
+
+- **Path validated.** Practitioner consensus: a greenfield account (no history anywhere) has an empty signal pool, so PMax has nothing to borrow and "shoots randomly"; under ~$1k/mo or zero history -> Standard Shopping + Search first, PMax only after ~30 conv/mo. Brand Search = cheapest highest-intent early conversions.
+- **Graduation gates (use these as the Stage triggers):**
+  - Exit Stage 1 -> Maximize Conversion Value (no target): **15-20 conv / 30 days**.
+  - Add Target ROAS: **50+ conv / month** (30 minimum) + ~4 weeks stable value reporting. Set first tROAS within 10-20% of observed, never aspirational (so first target ~observed, stepping toward 333%+).
+  - Launch PMax: **30+ conv / month**, feed-first, **with brand exclusions** (so it can't cannibalize the cheap branded Search/Shopping traffic and report inflated ROAS).
+- **Budget-for-learning (matters at Stage 2, not Stage 1):**
+  - Stage 1 is Manual CPC / Max Clicks -> **no learning phase**, so budget is just "enough cheap clicks to manufacture the first conversions." With $0.20-0.50 CPCs, **$25-40/day buys ~60-160 clicks/day**; at a 1-2% CVR that is roughly 0.5-3 conv/day -> the 15-30 conv graduation threshold is reachable in 2-4 weeks IF the store converts. Mirrors the PWS $25/day Stage 1 floor.
+  - Stage 2 (Max Conversion Value) needs budget >= **3-5x daily CPA** to avoid stalling learning. Est. CPA at cheap CPCs ~$15-30 -> ~**$45-150/day**; take the higher of that and the accumulation formula (conv needed x CPA / ~14-day window). Size once; changing budget/settings mid-learning resets the phase (keep changes <=20%, or make big changes all at once).
+- **Hard pre-launch gate (failure mode #7):** verify conversion tracking on `9267883382` BEFORE serving -- only true purchases as Primary, confirm "Recording conversions," reconcile vs Shopify. Smart Bidding "lives or dies on data quality." This re-confirms the deferred tracking check is a prerequisite, not optional.
+
+### API-rejection reconciliation (our codebase vs the brief)
+The brief could not verify a `NOT_ENOUGH_CONVERSIONS` enum in public docs and says the cold failure is usually operational (starved delivery), not a rejected mutate. **But our own PWS `validate_only` test empirically returned real rejections on STANDARD SHOPPING specifically:** `OPERATION_NOT_PERMITTED_FOR_CONTEXT` for maximize_conversions / maximize_conversion_value, and `NOT_ENOUGH_CONVERSIONS` for target_roas. Both can be true (the brief's doc-search was general/Search-oriented; Standard Shopping enforces differently). Practical rule unchanged: **always `validate_only` the intended bidding strategy before committing on a cold account; do not assume which strategies are permitted.**
+
 ## Open items before build
 - Reconcile this with the cold-start strategy research brief (in progress) -- especially learning-phase conversion thresholds and budget-for-learning math.
 - Adam approval of the path.

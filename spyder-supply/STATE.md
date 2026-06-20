@@ -18,7 +18,7 @@ Nothing yet.
 2026-06-19: Ran brand + keyword research (Ahrefs) and catalog pull. Confirmed catalog families (hole saws/kits, drill+spade bits, arbors, blades, scrapers). Branded demand ~3,600/mo (hero: `spyder hole saw kit` 1,100, `spyder drill bits` 800); CPCs $0.20-0.50; AOV reality check (kits are the ad-worthy SKUs). Wrote STRATEGY.md + DECISIONS.md (D1-D7). Launched a separate background research task on cold-start ad strategies. Proposed the Shopping+Branded-Search-first path (D4).
 
 ## Next action
-1. **Cold-start research brief (in progress, background task):** reconcile learning-phase conversion thresholds + budget-for-learning math into STRATEGY.md when it returns; promote the evergreen bits to PPC_ADVISOR.md after consulting Adam.
+1. **DONE: cold-start research brief** in `COLD_START_RESEARCH.md`; reconciled into STRATEGY.md (graduation gates 15-20 / 30 / 50+ conv, budget-for-learning math, brand-exclusion-from-PMax, pre-launch tracking gate). Evergreen distillation is PROPOSED for promotion to `PPC_ADVISOR.md` -- awaiting Adam's consult per the self-improvement rule.
 2. **Adam approval of the path (D4-D7)** -- propose-first account, nothing builds without it.
 3. On approval: set the curated Stage 1 SKU roster + daily budget, wire the feed/Merchant Center to `9267883382` and confirm conversion tracking (the deferred prerequisites), then propose/commit the Standard Shopping campaign (PAUSED) via the existing pipeline, and decide build-vs-UI for branded Search.
 
@@ -30,6 +30,7 @@ Create it **from inside the MCC** (Accounts > + > Create new account) so it is n
 - Predecessor account `3174244337` (TBO) + its Merchant Center feed: wind down vs repurpose? Is a Merchant Center account linked to the new `9267883382` yet, and where does the Spyder product feed point?
 
 ## Changelog (newest first)
+- 2026-06-19: Cold-start research brief completed (COLD_START_RESEARCH.md) and reconciled into STRATEGY.md; path confirmed; graduation gates + budget math pinned. Proposed promoting the evergreen distillation to PPC_ADVISOR.md (pending Adam).
 - 2026-06-19: Brand + keyword research + catalog pull. Wrote STRATEGY.md (keyword tables, AOV reality check, path recommendation) + DECISIONS.md (D1-D7). Proposed Shopping + Branded-Search-first, PMax deferred. Launched background cold-start research task.
 - 2026-06-19: Confirmed Shopify access via existing `weather-guard-store` key (rebrand in place). Spyder catalog ACTIVE (50+), old line DRAFT. Trailing-365d sales $11,436.91 all from old truck-box line, zero Spyder. Store-key blocker resolved. Logged economics, quirks, predecessor-account `3174244337` question.
 - 2026-06-19: Google Ads account `9267883382` created under the MCC and confirmed accessible (empty). Onboarding item 1 done; blocker is now the Shopify store key.
