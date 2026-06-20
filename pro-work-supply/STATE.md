@@ -3,7 +3,7 @@
 Last updated: 2026-06-17. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`. For the full staged plan and roster see `STAGE1_PROPOSAL.md`. For the decision log see `DECISIONS.md`.
 
 ## Current stage
-**Stage 1 campaign CREATED, PAUSED (2026-06-19).** Campaign `23958300224` (Standard Shopping, Manual CPC $0.55, $25/day) gated to `custom_label_2 = pws_stage1_3m`; PMax-A paused in the same commit. **Not yet enabled.** Enable once the DFW feed is confirmed stamping `custom_label_2` on the 60 items. Bidding had to be Manual CPC (D22): the account is too cold for any conversion-based Shopping bidding (tROAS = NOT_ENOUGH_CONVERSIONS; Max Conv/Value not permitted).
+**Stage 1 LIVE (enabled 2026-06-19).** Campaign `23958300224` (Standard Shopping, Manual CPC $0.55, ~$25/day) is ENABLED and serving against `custom_label_2 = pws_stage1_3m` (DFW feed confirmed green); campaign + ad group + product ad all ENABLED. PMax-A stays paused. Bidding is Manual CPC (D22): account too cold for conversion-based Shopping bidding. Weekly ops (D23) clock starts now; first review ~2026-06-26.
 
 ## What is live in the account (as of 2026-06-19)
 - **8 campaigns, ALL PAUSED.** Nothing is serving. The new `23958300224` "PWS | Shopping | Stage 1 Learning (3M Core)" (Standard Shopping, Manual CPC $0.55, $25/day, gate `custom_label_2=pws_stage1_3m`, ad group `197719002237`) is PAUSED awaiting enable. PMax-A `23702140220` was paused by the commit (D17). The 6 older campaigns remain paused.
@@ -20,8 +20,7 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 2026-06-19: Committed the Stage 1 campaign (PAUSED) after fixing three platform issues the commit surfaced (required `contains_eu_political_advertising`; Shopping rejects conversion-based bidding on this cold account -> Manual CPC; Shopping rejects a language criterion). Made bidding configurable in `ads_mcp/creation/shopping.py`. Verified the campaign, ad group, budget, and listing-group gate. Pre-flight resolved by self-serve: Merchant Center `5748251237` (via product_link); primary purchase conversion = "Google Shopping App Purchase" (works).
 
 ## Next action
-1. **Adam: confirm the DFW feed output** shows the 60 items carrying `custom_label_2 = pws_stage1_3m` (sheet is shared anyone-with-link). Then **enable** campaign `23958300224`.
-2. **Set up the weekly ops (D23)** once enabled: bid review + roster pruning + negative-keywords pass + the CRO tripwire. Claude can run it manually or as a scheduled task.
+1. **First weekly ops pass ~2026-06-26 (D23):** bid review + roster pruning + negative-keywords pass + CRO tripwire. Decide manual vs scheduled task. Watch early: is it getting impressions/clicks, and are any conversions registering.
 3. **Conversion-action tidy (optional):** secondary duplicate purchase actions ("Purchase", "Purchase (1)") exist alongside the primary; harmless for bidding, worth cleaning in Goals.
 4. **Stage 2 unlock:** when conversions clear NOT_ENOUGH_CONVERSIONS, switch the campaign to Maximize Conversion Value (one propose/commit; bidding is now configurable), then tROAS toward 800%.
 
@@ -38,6 +37,7 @@ Done earlier 2026-06-19: built MCP tooling (Standard Shopping + DFW tools); DFW 
 8. **Watch item (not a blocker):** store conversion capability. If the $25/day run shows near-zero CVR after the first 2-3 weeks, the bottleneck is the storefront, not the ads; pause and do store-readiness/CRO work before scaling.
 
 ## Changelog (newest first)
+- 2026-06-19: ENABLED campaign `23958300224` (campaign + ad group + product ad). PWS is live for the first time with a coherent strategy. ~$25/day Manual CPC on the 60-SKU 3M roster.
 - 2026-06-19: COMMITTED Stage 1 campaign `23958300224` (PAUSED) + paused PMax-A, atomically. Ratified D22 (Manual CPC, account too cold for Smart Bidding) and D23 (weekly ops incl. negative-keywords pass). Made bidding configurable in the tool. Verified structure. First push to the account.
 - 2026-06-19: DFW lookup sheet seeded + connected. Discovered DFW maps **custom_label_2** (not _0); re-seeded sheet header to `custom_label_2`, updated build spec/NOTES to gate on index 2. Codified the DFW loop in memory. Pushed repo to GitHub (adampaquette-source/google-ads-mcp).
 - 2026-06-19: Built MCP tooling: Standard Shopping propose/commit (creation/shopping.py, 3 tools) + DFW lookup-sheet tools (sheets.py, 2 tools). Validated the mutate builder offline. Docs updated (API ref §12, CLAUDE.md, .env.example, build spec). Pending: session restart + Adam's sheet/pre-flight setup, then propose/commit on approval.

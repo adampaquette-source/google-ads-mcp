@@ -4,21 +4,22 @@ Durable facts and standing rules for the Spyder Supply account. Update when a fa
 
 Last updated: 2026-06-19.
 
-Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. Not yet provisioned in either system (no Google Ads account under the MCC, no `shopify-toolup` store key). Identifiers below are placeholders until it exists.
+Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. **Replacing Truck Box Outlet** (rebrand). Storefront is already live at **spydersupply.com**. No Google Ads account yet; not yet in the `shopify-toolup` server. Identifiers below fill in as it is provisioned.
 
 ## Identifiers
 | Thing | Value |
 |---|---|
-| Google Ads account | TBD (not yet visible under MCC `7404361064`) |
+| Google Ads account | None yet -- to be created under MCC `7404361064` (see the billing/creation note in STATE.md) |
 | MCC login_customer_id | `7404361064` |
-| Shopify store key | TBD (not yet in the `shopify-toolup` server `stores.config.json`) |
-| Public storefront / brand | TBD |
-| Store identity | TBD (confirm what Spyder Supply sells, brand mix, target geo) |
+| Shopify store key | TBD (the Truck Box Outlet store, rebranded; add it to the `shopify-toolup` server `stores.config.json`) |
+| Public storefront | **spydersupply.com** (live) |
+| Store identity | **Spyder brand power tool accessories** (replaces Truck Box Outlet) |
+| Predecessor | Truck Box Outlet (being replaced; check for any prior ad history / Merchant feed to migrate or disregard) |
 
 ## Economics
 - Margin: TBD
 - Breakeven ROAS: TBD (1 / gross margin as a floor; treat the real target above it for net costs)
-- AOV floor: TBD
+- AOV floor: TBD (Spyder accessories are likely lower-AOV than PWS PPE -- confirm before setting a floor)
 
 ## Hard rules
 - No account changes without Adam's explicit approval.
