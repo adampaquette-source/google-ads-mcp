@@ -225,12 +225,14 @@ Digest content is **written by Claude via the Anthropic API**, not hand-template
 | `PPC_ADVISOR.md` | The Google Ads / PPC advisor persona AND canonical evergreen optimization knowledge (diagnosis framework, learning-phase rules, budget-for-learning math, channel selection, feed curation, staged rollout, failure modes). Also defines the per-account markdown system (NOTES.md + STATE.md), the account registry, and the maintenance / self-improvement rules for it. | At the start of any campaign or account optimization session. Update evergreen best practices only after consulting Adam. |
 | `<account-slug>/NOTES.md` | Per-account durable facts and standing rules (identifiers, store identity, economics, hard rules, quirks, known data gaps). Authoritative reference for the account. One per account folder. | Any session optimizing that account. Update when an account fact changes; bump the date. |
 | `<account-slug>/STATE.md` | Per-account live working state (current stage, what is live, what is proposed, last/next action, open questions, changelog). Fast-changing. One per account folder. | Any session optimizing that account. Update after every working session on it. |
-| `pro-work-supply/` (directory) | PWS account project: `NOTES.md` (durable facts), `STATE.md` (working state), `DECISIONS.md` (ratified D1-D16 log), `STAGE1_PROPOSAL.md` (staged plan + ~60-SKU roster), `HANDOFF.md` (original onboarding brief). Account never converted; Stage 1 learning plan ratified, nothing pushed. | Any session touching Pro Work Supply (`1532947017`). |
+| `pro-work-supply/` (directory) | PWS account project: `NOTES.md` (durable facts), `STATE.md` (working state), `DECISIONS.md` (ratified D1-D23 log), `STAGE1_PROPOSAL.md` + `STAGE1_BUILD_SPEC.md` (plan + executed build), `pws_stage1_3m_lookup.csv` (DFW roster), `weekly_reviews/` (dated weekly ops reports from the `pws-weekly-ops` scheduled task). Stage 1 Shopping campaign `23958300224` is LIVE (Manual CPC, $25/day). | Any session touching Pro Work Supply (`1532947017`). |
+| `spyder-supply/` (directory) | Spyder Supply account project (`NOTES.md` + `STATE.md`). Greenfield cold store (Spyder power-tool accessories, replacing Truck Box Outlet, spydersupply.com); onboarding, no ads account yet. | Any session touching Spyder Supply. |
 | `Google_Ads_MCP_Scoping.docx` | Original scoping rationale. Background only. | Rarely -- only if re-evaluating architecture. |
 
 Scheduled tasks read `DIGEST_SKILL.md` at runtime. They are thin wrappers:
 - `google-ads-daily-digest` calls DIGEST_SKILL.md in DAILY mode (LAST_7_DAYS)
 - `google-ads-weekly-digest` calls DIGEST_SKILL.md in WEEKLY mode (LAST_30_DAYS)
+- `pws-weekly-ops` (Fridays ~9:23am local) runs the Pro Work Supply Stage 1 weekly review (D23) and writes a dated report to `pro-work-supply/weekly_reviews/`. Self-contained prompt; diagnoses and proposes only, no account/feed changes.
 
 To view or edit scheduled task prompts: use the `mcp__scheduled-tasks__list_scheduled_tasks` and `mcp__scheduled-tasks__update_scheduled_task` tools.
 

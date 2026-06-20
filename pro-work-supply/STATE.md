@@ -20,7 +20,8 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 2026-06-19: Committed the Stage 1 campaign (PAUSED) after fixing three platform issues the commit surfaced (required `contains_eu_political_advertising`; Shopping rejects conversion-based bidding on this cold account -> Manual CPC; Shopping rejects a language criterion). Made bidding configurable in `ads_mcp/creation/shopping.py`. Verified the campaign, ad group, budget, and listing-group gate. Pre-flight resolved by self-serve: Merchant Center `5748251237` (via product_link); primary purchase conversion = "Google Shopping App Purchase" (works).
 
 ## Next action
-1. **First weekly ops pass ~2026-06-26 (D23):** bid review + roster pruning + negative-keywords pass + CRO tripwire. Decide manual vs scheduled task. Watch early: is it getting impressions/clicks, and are any conversions registering.
+1. **Weekly ops automated (D23):** the `pws-weekly-ops` scheduled task runs Fridays ~9:23am local (first run 2026-06-26) and writes a dated report to `weekly_reviews/`. It proposes only -- Adam reviews each report and approves bid/roster/negative changes, which are then applied in a normal session. Adam should click "Run now" once to pre-approve the tools it uses.
+2. Early watch: confirm the campaign is getting impressions/clicks and whether any conversions register.
 3. **Conversion-action tidy (optional):** secondary duplicate purchase actions ("Purchase", "Purchase (1)") exist alongside the primary; harmless for bidding, worth cleaning in Goals.
 4. **Stage 2 unlock:** when conversions clear NOT_ENOUGH_CONVERSIONS, switch the campaign to Maximize Conversion Value (one propose/commit; bidding is now configurable), then tROAS toward 800%.
 
