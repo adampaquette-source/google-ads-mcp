@@ -37,23 +37,28 @@ Operating principles:
 - Read the search terms report. Where did the money actually go, and did any of it convert?
 
 ### Smart Bidding and the learning phase
-- Smart Bidding needs roughly **15 to 30 conversions per 30 days** to exit learning. Below that, automated bidding is guessing.
-- **A high Target ROAS or Target CPA on an account with no conversion history starves the campaign.** The algorithm cannot find auctions it believes will hit the target, so it throttles spend toward zero. A cold account on a 500 to 700 percent tROAS will self-throttle to near-zero daily spend and never accumulate the history it needs. (This is exactly the PWS failure mode.)
+*(Sourced detail + citations in `COLD_START_RESEARCH.md`. Cross-validated 2026-06-19.)*
+- **Graduation gates (use as the Stage triggers):** Maximize Conversions / Conversion Value floor = **15 to 20 conv / 30 days**; enable a target (tCPA/tROAS) at **30 conv / 30 days**; trust **Target ROAS at 50+ conv / month** (15 is the bare eligibility floor, plus ~4 weeks of stable conversion-value reporting); launch **PMax at 30+ conv / month** with history already built. Google's own learning recalibration ceiling is **~50 conversions or 3 conversion cycles**.
+- **A high Target ROAS on an account with no conversion history starves the campaign.** The algorithm cannot find auctions it believes will hit the target, so it throttles spend toward zero. A cold account on a 500 to 700 percent tROAS will self-throttle to near-zero daily spend and never accumulate the history it needs. (This is exactly the PWS failure mode.) Set the first target within **10 to 20% of observed** CPA/ROAS, never aspirational; to un-throttle a tight target, loosen it 15 to 20%.
+  - *Accuracy note:* **tROAS** has the hard cold-start problem (15-conv eligibility floor). **tCPA technically can start with no history** per Google (its "30 conv" figure is an evaluation recommendation, not an activation gate) but still bids unreliably until conversions accrue. So "tROAS starves a cold account" is the strong, defensible claim; "tCPA literally fails" overstates it.
 - Cold accounts must start on a strategy that does not need conversion history, then switch once history exists. The right starting strategy depends on the channel:
-  - **Search / PMax:** start on Maximize Conversions (count), then add a target later.
-  - **Standard Shopping:** the platform actively BLOCKS conversion-based bidding on a cold account. Target ROAS returns `NOT_ENOUGH_CONVERSIONS`; Maximize Conversions and Maximize Conversion Value return `OPERATION_NOT_PERMITTED_FOR_CONTEXT`. The only permitted strategies are **Manual CPC** and **Maximize Clicks**. Cold-start Shopping on Manual CPC (managed max CPC) or Maximize Clicks to manufacture conversions, then switch to Maximize Conversion Value / tROAS once the account is warm enough. (PWS, 2026-06-19.)
+  - **Search / PMax:** start on Maximize Conversions (count) -- or, for ecommerce with real order values, Maximize Conversion Value (no target, value-aware) -- then add a target later.
+  - **Standard Shopping:** empirically, the platform BLOCKED conversion-based bidding on the cold PWS account. Target ROAS returned `NOT_ENOUGH_CONVERSIONS`; Maximize Conversions and Maximize Conversion Value returned `OPERATION_NOT_PERMITTED_FOR_CONTEXT`. The only permitted strategies were **Manual CPC** and **Maximize Clicks**. Cold-start Shopping on Manual CPC (managed max CPC) or Maximize Clicks to manufacture conversions, then switch to Maximize Conversion Value / tROAS once warm. (PWS, 2026-06-19.)
+  - *Accuracy note:* the research could NOT verify a `NOT_ENOUGH_CONVERSIONS` enum in Google's public API docs, and says the cold failure is usually **operational** (starved delivery / "Learning limited"), not a rejected mutate. Our PWS result is the empirical exception for **Standard Shopping specifically**. Both hold -- which is exactly why you `validate_only` rather than assume.
 - **Verify permitted bidding strategies with `validate_only` before committing a campaign.** Do not assume a strategy is allowed for the channel + account-warmth combination; the API decides, and the error tells you why (`NOT_ENOUGH_CONVERSIONS` vs `OPERATION_NOT_PERMITTED_FOR_CONTEXT`).
-- Do not change the bid strategy mid-learning. It restarts the learning clock.
+- Do not change the bid strategy, budget, or composition mid-learning. It restarts the learning clock (~50 conv / 3 cycles to recalibrate). Keep any change **<=20%** and wait ~1 week, or make big changes all at once. (The 20% figure is a strong rule of thumb, not an official hard line.)
 
 ### Budget sizing for learning
-- Size the budget to buy the conversion volume needed to exit learning within about 30 days, then cap it hard.
+- **Manual CPC / Maximize Clicks have no learning phase**, so a cold Stage 1 budget is just "enough cheap clicks to manufacture the first conversions." Size it from the click math below and cap it hard.
 - Rough formula: `daily budget = (target conversions / 30) x (CPC / CVR)`. Worked example, PWS: 30 conversions/mo at ~$0.40 CPC and ~1% CVR = ~3,000 clicks = ~$1,200/mo = ~$40/day.
+- **Once you switch to Smart Bidding (Stage 2), the budget must clear the learning phase or it stalls forever.** Two cross-checks, take the higher: the accumulation figure above, and **3 to 5x the intended daily CPA** (Google's literal wording is only "be comfortable spending up to 2x your daily budget"; the Nx-CPA multiplier is practitioner lore spanning 2x / 3-5x / 10x). A budget too thin to accumulate diverse data traps the campaign in "Limited by budget" and it never exits learning.
 - Expect sub-breakeven ROAS during learning. Treat it as tuition spent to manufacture conversion history, governed by a hard cap and a fixed evaluation date, never an open-ended bleed.
 
 ### Channel selection
-- **Cold account, no conversion history: Standard Shopping over PMax.** PMax leaks budget to Display and video and is a black box that gives you no clean signal to learn from. Build clean conversion data on Shopping first.
-- PMax earns its place once you have proven converters to seed asset groups and a conversion base to optimize against.
-- **Branded Search** is cheap defensive coverage, worth it only if branded demand actually exists. Near-zero brand search volume means a minimal budget, not a real channel.
+- **Cold account, no conversion history: Standard Shopping over PMax.** PMax leaks budget to Display and video and is a black box that gives you no clean signal to learn from. Build clean conversion data on Shopping first. The deeper reason: Smart Bidding borrows query-level signal across the account/MCC, but a **greenfield account's signal pool is empty -- there is nothing to borrow -- so PMax "shoots randomly."** Practitioner consensus: under ~$1k/mo or zero history, stay on Shopping + Search; PMax needs ~30 conv/mo to exit learning, ~60 to thrive.
+- PMax earns its place once you have proven converters to seed asset groups and a conversion base to optimize against. **When you do launch PMax, exclude brand terms from it** -- otherwise it attributes your cheap branded conversions to itself and reports inflated ROAS (Optmyzr 503-account study: 97% had Search/PMax overlap; brand >30% of PMax conv = burning money).
+- **Branded Search** is the cheapest, highest-intent early conversion source -- run it as its own campaign so those conversions stay attributable. Worth it only if branded demand actually exists; near-zero brand volume means a minimal budget, not a real channel.
+- **Category (non-brand) Search on a brand-new, no-authority domain is usually a trap** -- you fight category leaders on Quality Score with no history. Capture category demand through Shopping (compete on price + image), and test category Search only once warm.
 
 ### Feed and roster curation
 - **Concentrate budget on a curated roster, not the whole catalog.** A 9,000-SKU feed on a small budget gives every SKU pennies and learns nothing.
@@ -82,8 +87,12 @@ Operating principles:
 - Changing bid strategy mid-learning and resetting the clock.
 - Scaling on a single good week instead of a stable trend.
 - Assuming a cold Shopping campaign can launch on Smart Bidding. The API blocks it; cold-start on Manual CPC or Maximize Clicks and validate strategies with `validate_only` first.
+- Launching PMax with no conversion signal (it shoots randomly; no-history products read as risky and get zero impressions), or running PMax without brand exclusions (it cannibalizes branded traffic and reports inflated ROAS).
+- **Launching before conversion tracking is verified.** Smart Bidding lives or dies on data quality. Before any launch: confirm conversion actions show "Recording conversions," set only true purchases as Primary (micro-conversions as primary make bidding chase cheap low-value actions), and reconcile 30-day Google-reported conversions against the store backend.
+- Fragmenting thin conversion data across too many campaigns; consolidate by shared objective so each can actually learn.
 
 ## Cross references
+- `COLD_START_RESEARCH.md` -- the full, citable cold-start strategy brief (learning phase, bidding ladder, PMax-vs-Shopping-vs-Search, budget math, graduation gates, failure modes). The "Smart Bidding," "Budget sizing," "Channel selection," and "Common failure modes" sections above are the distillation of it.
 - `CAMPAIGN_CREATION_BEST_PRACTICES.md` -- mechanics of building net-new campaigns. Read it for any build task.
 - `GOOGLE_ADS_API_REFERENCE.md` -- GAQL, field names, write structure, quota.
 - `CONTROL_CENTER_SPEC.md` -- the always-on monitoring layer (tROAS drift, budget cap, spend anomaly) that surfaces issues between projects.
@@ -172,7 +181,7 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 | Account | customer_id | Shopify key | Folder | Stage / status | Last touched |
 |---|---|---|---|---|---|
 | Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 LIVE (Manual CPC $0.55, $25/day, 3M roster); weekly ops automated | 2026-06-19 |
-| Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Onboarding; Ads + Shopify access confirmed (empty account). Awaiting margin/geo + predecessor-account `3174244337` decision, then diagnosis | 2026-06-19 |
+| Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Strategy ratified (D4-D8): Shopping + branded Search first, PMax Stage 2. Blocked on build-time prereqs (feed/MC wiring, tracking verify, roster/budget) | 2026-06-19 |
 
 Add a row when you begin a new account project and create its folder.
 
