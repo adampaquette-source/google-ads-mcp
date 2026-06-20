@@ -16,10 +16,11 @@ Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. 
 | Store identity | **Spyder brand power tool accessories** (replaces Truck Box Outlet). Catalog: scrapers, hole saws, bi-metal reciprocating/demolition saw blades. Spyder products are ACTIVE (50+); old WeatherGuard truck-box catalog set to DRAFT (retiring). |
 | Predecessor ads account | **Weather Guard Store, customer_id `3174244337`** (identifiers Truck Box Outlet / TBO), still ENABLED under the MCC. Holds truck-box ad history + likely a Merchant Center link. Default plan: start clean on the new Spyder account `9267883382` and wind down `3174244337` + its feed (the old history is irrelevant to Spyder). Decision pending Adam. |
 
-## Economics
-- Margin: TBD
-- Breakeven ROAS: TBD (1 / gross margin as a floor; treat the real target above it for net costs)
-- AOV floor: TBD (Spyder accessories -- blades, hole saws, scrapers -- are low-AOV; confirm before setting a floor)
+## Economics (confirmed by Adam 2026-06-19)
+- Margin: **~30%**.
+- Breakeven ROAS: **~3.3x (333%)** = 1 / 0.30. Real target above it for net costs (shipping, returns) -- aim ~400%+ once proven.
+- AOV: Adam's working assumption **$100-200**, BUT catalog pricing says that only holds for kits/baskets. Hero ad SKUs: 13-pc Rapid Core hole saw kit $81.20, 4" carbide hole saw $79.10, sets $12-30. Long tail of single hole saws $5-19, spade bits $2-3 that lose money sold solo. **Curate ads to the high-ticket SKUs.**
+- CPCs (Ahrefs): **$0.20-0.50 across both brand and category terms** -- very cheap clicks, the key economic advantage for cold-start learning.
 - **Trailing 365-day store net sales: $11,436.91, but 100% from the OLD WeatherGuard/Knaack truck-box line (pack-rat parts, locks, gas springs, dividers). Zero Spyder sales yet** (Spyder catalog is brand new). Verified 2026-06-19 via shopify-toolup get_product_sales.
 - **Store-conversion risk is LOWER than PWS:** this domain has a working, converting checkout (~$11.4k/yr on the old line), unlike PWS which barely converted. The open risk here is Spyder product-market fit on this domain, not cart capability.
 
@@ -27,6 +28,11 @@ Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. 
 - No account changes without Adam's explicit approval.
 - No em dashes in user-facing output.
 - Use the local `shopify-toolup` MCP, never the cloud Shopify tools.
+
+## Brand (Spyder Products)
+- Founded 2007 (the Spyder Scraper); value/innovation challenger brand in power-tool accessories. Competes vs category leaders Diablo, Milwaukee, Lenox, MK Morse -- not the category leader, so category-term Search on a no-authority new domain is tough; brand + Shopping are the stronger plays.
+- Product families in the catalog: bi-metal + carbide hole saws, Rapid Core Eject hole saw KITS, spade/drill bits + arbors, recip ("Sawzall") blades incl. double-edged 3X3, scrapers, grout-out attachments.
+- Branded search demand ~3,600/mo total, concentrated in `spyder hole saw kit` (1,100) and `spyder drill bits` (800). Full keyword table in STRATEGY.md.
 
 ## Account quirks
 - **In-place rebrand on one Shopify store.** `weather-guard-store` simultaneously holds the retiring WeatherGuard truck-box catalog (DRAFT) and the new Spyder catalog (ACTIVE). When pulling catalog/sales, filter to `vendor:Spyder` / `status:active` so the old line does not contaminate the read.
