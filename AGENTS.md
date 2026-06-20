@@ -140,9 +140,10 @@ Steps:
 ### Phase 3: Targeted adjustments with batch approval
 - Add `ads_mcp/proposals/` with builder functions per change type
 - Add MCP tools: `propose_troas_change`, `propose_budget_change`, `propose_campaign_status`, `propose_negative_keywords`, `propose_asset_group_signals`, `propose_bid_adjustments`
-- Add `get_change_plan(plan_id)` and `commit_change_plan(plan_id, approval_token)`
 - Write all changes to the audit log on commit
-- **Approval pattern:** No write tool executes directly. Each `propose_*` returns a plan ID and a structured diff. `commit_change_plan` requires the operator to pass an approval token that the MCP client surfaces to Adam in chat. The token is short-lived (5 min) and single-use.
+- **As-built approval flow (this is what actually exists).** The token design described below was planned but never implemented. The real flow is approval-by-spreadsheet: `propose_*` tools (tROAS, budget) write proposed changes to a Google Sheets tab; a human sets each row's `Decision` to `Approve` or `Skip` (or uses the Control Center web UI as the approval surface); then `commit_troas_changes()`, `commit_budget_changes()`, or `commit_all_changes()` (no arguments) read the sheet and apply every `Approve` row, logging each to the Log tab. Campaign creation uses `propose_*` returning a `proposal_id`, committed via `commit_google_ads_pmax_campaign(proposal_id)` / `commit_google_ads_standard_shopping_campaign(proposal_id)`.
+- **Known gap (matters for hosting).** The as-built flow is a single-trusted-operator control: it assumes whoever edits the sheet and whoever runs commit are the same trusted person. There is no token, no expiry, no single-use enforcement, no caller binding, and no actor identity in the audit rows. Acceptable on one local machine; NOT an authorization control. Build the real gate before any networked or multi-user exposure (see `HOSTING_MIGRATION_PLAN.md` Section 3 and gate G5).
+- **Original planned design, NOT implemented (kept for reference):** `get_change_plan(plan_id)` and `commit_change_plan(plan_id, approval_token)`, where commit required a short-lived (5 min), single-use approval token surfaced to Adam in chat.
 
 ### Phase 4: Net-new campaign creation
 - Add `ads_mcp/creation/` for campaign builders
@@ -184,7 +185,7 @@ Steps:
 - All accounts in the MCC are owned by Adam's org. No agency clients. No per-account compliance allowlist needed.
 - Operationally still treat writes carefully. Audit log everything. Make rollback queries easy (`get_recent_changes(account_id, hours=24)`).
 - Never expose a tool that performs a write without going through the proposal/commit flow.
-- The approval token returned by `get_change_plan` is what Adam approves in chat. Without that token, `commit_change_plan` raises.
+- **Approval is currently by spreadsheet, not by token.** The `approval_token` / `commit_change_plan` model is documented in Phase 3 but was never built. Today approval = a human marks `Approve` in the Google Sheet (or commits via the Control Center UI), then runs the relevant `commit_*` tool. This holds only for a single trusted local operator. See `HOSTING_MIGRATION_PLAN.md` (Section 3, gate G5) before exposing any write surface to the network.
 
 ## Notifications (Phase 2+)
 
