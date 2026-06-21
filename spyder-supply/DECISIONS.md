@@ -14,6 +14,10 @@ Ratified decisions for the Spyder Supply account. Newest decisions appended. "Pr
 - **D7 (Ratified).** Stage 2 introduces PMax (fed by Stage 1 conversion history, **launched with brand exclusions**, at 30+ conv/mo) and a category-Search test; not before.
 - **D8 (Ratified).** Cold-start research completed (`COLD_START_RESEARCH.md`) and its evergreen distillation promoted into `PPC_ADVISOR.md` (graduation gates, budget-for-learning, brand-exclusion-from-PMax, verify-tracking-before-launch, always-validate_only). Approved by Adam 2026-06-19.
 
+## Build decisions (2026-06-21, in CAMPAIGN_BUILD_SPEC.md)
+- **D9.** Two Standard Shopping campaigns, gated to mutually-exclusive `custom_label_2` values: **Campaign A `spyder_curated`** (in-stock, >= $15, demand categories; 191 SKUs; priority High, $30/day, Manual CPC $0.45) and **Campaign B `spyder_fallback`** (>= $5, not curated; 388 SKUs; priority Low, $10/day, Manual CPC $0.30). Sub-$5 (149 SKUs) get no label = advertised nowhere.
+- **D10.** Branded Search = one campaign, ~11 ad groups grouped by Ahrefs demand cluster (hole saw kits, hole saws, arbors, drill bits, spade/wood bits, step bits, recip/saw blades, circular/jig/oscillating, Mach-Blue, impact/driver, brand catch-all), phrase + exact, each final-URL'd to its collection. Scraper + grout ad groups held until restocked (OOS).
+
 ## Pending / to decide (build-time)
 - Daily budget for Stage 1 (Manual CPC has no learning phase; cheap CPCs mean ~$25-40/day buys enough clicks -- finalize when setting the roster).
 - The specific curated SKU roster for the Stage 1 Shopping feed (kits + carbide hole saws + sets).
