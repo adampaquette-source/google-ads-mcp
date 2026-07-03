@@ -18,8 +18,14 @@ Ratified decisions for the Spyder Supply account. Newest decisions appended. "Pr
 - **D9.** Two Standard Shopping campaigns, gated to mutually-exclusive `custom_label_2` values: **Campaign A `spyder_curated`** (in-stock, >= $15, demand categories; 191 SKUs; priority High, $30/day, Manual CPC $0.45) and **Campaign B `spyder_fallback`** (>= $5, not curated; 388 SKUs; priority Low, $10/day, Manual CPC $0.30). Sub-$5 (149 SKUs) get no label = advertised nowhere.
 - **D10.** Branded Search = one campaign, ~11 ad groups grouped by Ahrefs demand cluster (hole saw kits, hole saws, arbors, drill bits, spade/wood bits, step bits, recip/saw blades, circular/jig/oscillating, Mach-Blue, impact/driver, brand catch-all), phrase + exact, each final-URL'd to its collection. Scraper + grout ad groups held until restocked (OOS).
 
+## Build decisions (2026-07-03, campaigns created PAUSED)
+- **D11 (Ratified/built).** Starter = **full 11-ad-group branded Search** ($10/day, Manual CPC $0.40) + **one curated Shopping campaign** ($30/day, Manual CPC $0.45, gate `spyder_curated`). Fallback Shopping (Campaign B) deferred. Adam builds the tool (D3 answered: yes) and publishes/enables as he sees fit. Created PAUSED in `9267883382`: Search `23999926235`, Shopping `23999925116`. Merchant Center = `5812518721`.
+- **D12 (Ratified).** "Spyder" collides with Spyder paintball markers and Spyder ski apparel -> 18 campaign-level BROAD negatives (paintball, marker, ski, jacket, coat, snowboard, apparel, clothing, maserati, biturbo, spider, spiderman, game, victor, hoodie, vest, convertible). Three sub-brand keywords (`spyder mach blue`, `spyder mach-blue`, `spyder black series`) tripped Google's **"Guns" policy (EXEMPTIBLE)** and were dropped (~30/mo, negligible); revisit via a policy-exemption request if ever worth it. The productive `spyder mach blue drill bits` / `impact bits` were not flagged and stayed in.
+
+## Search creation tool built (2026-07-03)
+`ads_mcp/creation/search.py` + tools `propose/get/commit_google_ads_search_campaign` (API ref section 14). Follow-up: add optional policy-exemption support so exemptible violations (e.g. "Guns") don't hard-block a commit.
+
 ## Pending / to decide (build-time)
-- Daily budget for Stage 1 (Manual CPC has no learning phase; cheap CPCs mean ~$25-40/day buys enough clicks -- finalize when setting the roster).
-- The specific curated SKU roster for the Stage 1 Shopping feed (kits + carbide hole saws + sets).
-- Whether to build a branded-Search creation tool (none exists) or launch that campaign via the UI.
-- **Hard prerequisites before serving:** feed/Merchant Center wired to `9267883382`, and conversion tracking verified (Recording conversions, true purchases as Primary, reconciled vs Shopify).
+- **Hard prerequisites before Shopping serves:** MC misrepresentation flag cleared; DFW writing `custom_label_2` so `spyder_curated` has products; conversion tracking verified (Recording conversions, true purchases Primary, reconciled vs Shopify).
+- Curated/fallback boundary (the $15-floor vs category-based question) still open -- only matters when the DFW `spyder_curated` roster is loaded; the campaign gate is agnostic to membership.
+- Fallback Shopping campaign (Campaign B) -- add later once curated is serving.

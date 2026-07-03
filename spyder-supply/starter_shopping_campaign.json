@@ -1,0 +1,14 @@
+{
+  "campaign_name": "Spyder | Shopping | Curated (Core)",
+  "daily_budget_usd": 30.0,
+  "merchant_id": 5812518721,
+  "custom_label_value": "spyder_curated",
+  "custom_label_index": 2,
+  "feed_label": "US",
+  "campaign_priority": 2,
+  "bidding_strategy": "manual_cpc",
+  "max_cpc_usd": 0.45,
+  "geo_target_ids": [
+    "2840"
+  ]
+}

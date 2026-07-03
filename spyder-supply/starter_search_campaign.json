@@ -1,0 +1,468 @@
+{
+  "campaign_name": "Spyder | Search | Branded",
+  "daily_budget_usd": 10.0,
+  "bidding_strategy": "manual_cpc",
+  "default_cpc_usd": 0.4,
+  "geo_target_ids": [
+    "2840"
+  ],
+  "language_ids": [
+    "1000"
+  ],
+  "enable_search_partners": false,
+  "negative_keywords": [
+    "paintball",
+    "marker",
+    "ski",
+    "jacket",
+    "coat",
+    "snowboard",
+    "apparel",
+    "clothing",
+    "maserati",
+    "biturbo",
+    "spider",
+    "spiderman",
+    "spider man",
+    "game",
+    "victor",
+    "hoodie",
+    "vest",
+    "convertible"
+  ],
+  "ad_groups": [
+    {
+      "name": "Hole Saw Kits",
+      "final_url": "https://spydersupply.com/collections/spyder-hole-saws",
+      "keywords": [
+        {
+          "text": "spyder hole saw kit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder hole saw kits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder carbide hole saw kit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder tct hole saw kit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder rapid core kit",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Hole Saw Kits",
+        "Rapid Core Eject Kits",
+        "Bi-Metal & Carbide Kits",
+        "TCT Hole Saw Kits",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Hole Saw Kits for Pros",
+        "Shop Spyder Supply"
+      ],
+      "descriptions": [
+        "Shop genuine Spyder hole saw kits with Rapid Core Eject. Free shipping over $99.",
+        "Bi-metal and carbide-tipped kits for wood, metal and masonry.",
+        "Complete Spyder hole saw kits, ready to work. Order at Spyder Supply."
+      ],
+      "path1": "hole-saws",
+      "path2": "kits"
+    },
+    {
+      "name": "Hole Saws",
+      "final_url": "https://spydersupply.com/collections/spyder-metal-and-wood-hole-saws",
+      "keywords": [
+        {
+          "text": "spyder hole saw",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder hole saws",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder carbide hole saw",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder diamond hole saw",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder bi-metal hole saw",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder deep cut hole saw",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Hole Saws",
+        "Carbide & Bi-Metal",
+        "Deep Cut Hole Saws",
+        "Wood, Metal & Masonry",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Hole Saws",
+        "Fast, Clean Holes"
+      ],
+      "descriptions": [
+        "Shop genuine Spyder hole saws for wood, metal and masonry. Free shipping over $99.",
+        "Carbide-tipped, bi-metal and diamond hole saws for every material.",
+        "Pro-grade Spyder hole saws at Spyder Supply. Order online today."
+      ],
+      "path1": "hole-saws",
+      "path2": "shop"
+    },
+    {
+      "name": "Hole Saw Arbors",
+      "final_url": "https://spydersupply.com/collections/spyder-arbors-and-pilot-bits",
+      "keywords": [
+        {
+          "text": "spyder hole saw arbor",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder hole saw arbors",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder hole saw bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder arbor",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Hole Saw Arbors",
+        "Quick Change Arbors",
+        "Arbors & Pilot Bits",
+        "Hole Saw Arbors",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Arbors",
+        "Fits Spyder Hole Saws"
+      ],
+      "descriptions": [
+        "Genuine Spyder hole saw arbors and pilot bits. Free shipping over $99.",
+        "Quick-change arbors built to fit your Spyder hole saws.",
+        "Shop Spyder arbors and pilot bits at Spyder Supply."
+      ],
+      "path1": "hole-saws",
+      "path2": "arbors"
+    },
+    {
+      "name": "Drill Bits",
+      "final_url": "https://spydersupply.com/collections/spyder-drilling-driving",
+      "keywords": [
+        {
+          "text": "spyder drill bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder drill bit set",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder bit set",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder drill bit",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Drill Bits",
+        "Drill Bit Sets",
+        "Mach-Blue & Stinger",
+        "Wood & Metal Bits",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Drill Bits",
+        "Built to Last"
+      ],
+      "descriptions": [
+        "Shop genuine Spyder drill bits and sets. Free shipping over $99.",
+        "Mach-Blue and Stinger bits engineered for wood and metal.",
+        "Pro-grade Spyder drill bits at Spyder Supply. Order today."
+      ],
+      "path1": "drill-bits",
+      "path2": "shop"
+    },
+    {
+      "name": "Spade & Wood Bits",
+      "final_url": "https://spydersupply.com/collections/spyder-wood-drilling",
+      "keywords": [
+        {
+          "text": "spyder spade bit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder spade bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder auger bit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder stinger drill bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder stinger",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Spade Bits",
+        "Spyder Auger Bits",
+        "Stinger Wood Bits",
+        "Wood Boring Bits",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Wood Bits",
+        "Fast Wood Drilling"
+      ],
+      "descriptions": [
+        "Genuine Spyder spade, auger and Stinger wood bits. Free shipping over $99.",
+        "Fast, clean wood boring with Spyder Stinger bits.",
+        "Shop Spyder wood drilling bits at Spyder Supply."
+      ],
+      "path1": "wood-bits",
+      "path2": "shop"
+    },
+    {
+      "name": "Step Bits",
+      "final_url": "https://spydersupply.com/collections/spyder-step-drill-bits",
+      "keywords": [
+        {
+          "text": "spyder step bit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder step drill bit",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder mach blue step drill bits",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Step Bits",
+        "Step Drill Bits",
+        "Mach-Blue Step Bits",
+        "Step Bits for Metal",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Step Bits",
+        "Clean Holes in Metal"
+      ],
+      "descriptions": [
+        "Genuine Spyder step drill bits, including Mach-Blue. Free shipping over $99.",
+        "Step bits that cut clean holes in sheet metal and more.",
+        "Shop Spyder step drill bits at Spyder Supply."
+      ],
+      "path1": "step-bits",
+      "path2": "shop"
+    },
+    {
+      "name": "Recip & Saw Blades",
+      "final_url": "https://spydersupply.com/collections/spyder-reciprocating-saw-blades",
+      "keywords": [
+        {
+          "text": "spyder blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder sawzall blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder reciprocating saw blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder saw blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder recip blades",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Recip Blades",
+        "Reciprocating Blades",
+        "Bi-Metal Sawzall Blades",
+        "Wood & Metal Blades",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Blades",
+        "Cut Faster, Last Longer"
+      ],
+      "descriptions": [
+        "Genuine Spyder reciprocating saw blades. Free shipping over $99.",
+        "Bi-metal recip blades for wood, metal and demolition.",
+        "Shop Spyder Sawzall-compatible blades at Spyder Supply."
+      ],
+      "path1": "blades",
+      "path2": "recip"
+    },
+    {
+      "name": "Circular, Jig & Oscillating",
+      "final_url": "https://spydersupply.com/collections/spyder-circular-saw-blades",
+      "keywords": [
+        {
+          "text": "spyder circular saw blade",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder circular saw blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder jigsaw blades",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder oscillating blades",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Saw Blades",
+        "Circular Saw Blades",
+        "Jig Saw Blades",
+        "Oscillating Blades",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Blades",
+        "TCT Circular Blades"
+      ],
+      "descriptions": [
+        "Genuine Spyder circular, jig and oscillating blades. Free shipping over $99.",
+        "TCT circular saw blades for clean, fast cuts.",
+        "Shop Spyder saw blades at Spyder Supply. Order online."
+      ],
+      "path1": "blades",
+      "path2": "shop"
+    },
+    {
+      "name": "Mach-Blue",
+      "final_url": "https://spydersupply.com/collections/spyder-mach-blue",
+      "keywords": [
+        {
+          "text": "spyder mach blue drill bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder mach blue impact bits",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Mach-Blue",
+        "Mach-Blue Drill Bits",
+        "Mach-Blue Impact Bits",
+        "Mach-Blue Coating",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Mach-Blue",
+        "Longer Bit Life"
+      ],
+      "descriptions": [
+        "Shop the Spyder Mach-Blue line of bits. Free shipping over $99.",
+        "Mach-Blue coating for cooler cutting and longer bit life.",
+        "Genuine Spyder Mach-Blue at Spyder Supply. Order today."
+      ],
+      "path1": "mach-blue",
+      "path2": "shop"
+    },
+    {
+      "name": "Impact & Driver Bits",
+      "final_url": "https://spydersupply.com/collections/spyder-driving-and-fastening",
+      "keywords": [
+        {
+          "text": "spyder impact bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder driver bits",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder mach blue impact bits",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Spyder Impact Bits",
+        "Spyder Driver Bits",
+        "Impact-Rated Bits",
+        "Driving & Fastening",
+        "Free Shipping Over $99",
+        "Genuine Spyder Tools",
+        "Shop Spyder Bits",
+        "Grip & Go Driving"
+      ],
+      "descriptions": [
+        "Genuine Spyder impact and driver bits. Free shipping over $99.",
+        "Impact-rated driver bits built for high-torque driving.",
+        "Shop Spyder driving and fastening bits at Spyder Supply."
+      ],
+      "path1": "impact-bits",
+      "path2": "shop"
+    },
+    {
+      "name": "Spyder Brand",
+      "final_url": "https://spydersupply.com/collections/all-products",
+      "keywords": [
+        {
+          "text": "spyder products",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder tools",
+          "match_type": "PHRASE"
+        },
+        {
+          "text": "spyder tarantula",
+          "match_type": "PHRASE"
+        }
+      ],
+      "headlines": [
+        "Shop Spyder Supply",
+        "Genuine Spyder Tools",
+        "Spyder Accessories",
+        "Spyder Tarantula",
+        "Spyder Black Series",
+        "Free Shipping Over $99",
+        "Power Tool Accessories",
+        "Hole Saws, Bits & Blades"
+      ],
+      "descriptions": [
+        "Your source for genuine Spyder accessories. Free shipping over $99.",
+        "Spyder hole saws, drill bits, blades and more at Spyder Supply.",
+        "Shop the full Spyder lineup online. Order today."
+      ],
+      "path1": "spyder",
+      "path2": "shop"
+    }
+  ]
+}
