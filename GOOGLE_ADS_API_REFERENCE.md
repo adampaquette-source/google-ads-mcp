@@ -512,3 +512,27 @@ Discovered via `validate_only` and a live commit. Use `validate_only` (set `Muta
 - **No language criterion.** A `campaign_criterion.language` on a Shopping campaign returns `OPERATION_NOT_PERMITTED_FOR_CONTEXT` -- Shopping serves by Merchant Center feed language. Set geo (`location`) only.
 - **Listing-group custom-label index enum:** `ProductCustomAttributeIndexEnum.INDEX2` serializes to int 9 (INDEX0=7 ... INDEX4=11). The excluded "everything else" unit has an empty `case_value.value` and `ad_group_criterion.negative = True`.
 - **Response mapping:** pause-existing and create ops both yield `campaign_result`, so capture the created campaign by op index, not by scanning result type.
+
+---
+
+## 14. Standard Search campaign creation
+
+Used for a cold-account branded Search campaign: a series of tight ad groups (one per demand cluster / collection), high-intent brand keywords, each ad group final-URL'd to its matching collection, with campaign-level negative keywords blocking irrelevant traffic. Implemented in `ads_mcp/creation/search.py` (propose/get/commit, mirroring `shopping.py`). Campaign, ad groups, and ads are all created PAUSED. Validated against a live account with `validate_only` (Spyder `9267883382`, 2026-07-03).
+
+### Mutate operation ordering (single atomic request)
+1. `CampaignBudget` (create, not shared).
+2. `Campaign`: `advertising_channel_type = SEARCH`, `status = PAUSED`, budget link. `contains_eu_political_advertising` REQUIRED (same as Shopping). Bidding: cold account -> `client.copy_from(campaign.manual_cpc, client.get_type("ManualCpc"))` or Maximize Clicks via `target_spend` (`cpc_bid_ceiling_micros`). `network_settings.target_google_search=True`, `.target_search_network=` partners toggle (default False), `.target_content_network=False`.
+3. `CampaignCriterion` per geo (`location.geo_target_constant`). **Unlike Shopping, Search DOES allow a language criterion** (`language.language_constant = languageConstants/1000`) -- add one per `language_ids`.
+4. `CampaignCriterion` per negative keyword: `negative=True`, `keyword.text`, `keyword.match_type = BROAD`.
+5. Per ad group: `AdGroup` (`type_ = SEARCH_STANDARD`, PAUSED, `cpc_bid_micros` set under manual_cpc), then one `AdGroupCriterion` per keyword (`keyword.text` + `keyword.match_type` EXACT/PHRASE/BROAD, status ENABLED), then one `AdGroupAd` RSA.
+
+### Responsive Search Ad (RSA) construction
+- `ad_group_ad.ad.final_urls.append(url)` (repeated string; append works).
+- `rsa = ad_group_ad.ad.responsive_search_ad`; add assets via `.add()` on the repeated message fields (raw protobuf): `asset = rsa.headlines.add(); asset.text = "..."` (same for `rsa.descriptions`). `rsa.path1` / `rsa.path2` are plain strings.
+- Limits enforced by the builder's validator: **3-15 headlines <= 30 chars**, **2-4 descriptions <= 90 chars**, path1/path2 <= 15 chars.
+
+### Notes
+- Same `use_proto_plus=False` raw-protobuf conventions as Shopping (enums are ints, use `client.copy_from` for oneof messages, `.add()` for repeated messages).
+- Response mapping: the builder records the created campaign op index and a list of each ad group's op index (`ad_group_result.resource_name`).
+- Cold-start: start on `manual_cpc` (or `maximize_clicks`); Smart Bidding (tCPA/tROAS/Max Conv) is a Stage 2 switch. No Merchant Center dependency, so Search can launch before the Shopping feed is ready.
+- Keywords accept either plain strings (default PHRASE) or `{text, match_type}` dicts. Negative keywords are campaign-level BROAD.

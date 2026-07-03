@@ -32,6 +32,14 @@ from ads_mcp.creation.pmax import (
     get_pmax_proposal,
     propose_pmax_campaign,
 )
+from ads_mcp.creation.search import (
+    SearchCampaignConfig,
+    SearchCreationResult,
+    SearchProposal,
+    commit_search_campaign,
+    get_search_proposal,
+    propose_search_campaign,
+)
 from ads_mcp.creation.shopping import (
     ShoppingCreationResult,
     ShoppingProposal,
@@ -1405,6 +1413,77 @@ def commit_google_ads_standard_shopping_campaign(proposal_id: str) -> ShoppingCr
     status="created_paused".
     """
     return commit_standard_shopping_campaign(get_client(), proposal_id)
+
+
+# ---------------------------------------------------------------------------
+# Standard Search campaign creation tools (propose / get / commit)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def propose_google_ads_search_campaign(
+    customer_id: str,
+    config: dict,
+) -> SearchProposal:
+    """Validate a Standard Search campaign config and store it as a pending proposal.
+
+    IMPORTANT: This tool does NOT make any changes to Google Ads. Review the returned
+    proposal, then call commit_google_ads_search_campaign to execute it.
+
+    Builds a Search campaign with one or more ad groups, each with its own keywords
+    and a Responsive Search Ad. Campaign, ad groups, and ads are all created PAUSED.
+    Cold accounts start on manual_cpc (or maximize_clicks); switch to Smart Bidding in
+    Stage 2 once conversions accumulate. Validate with validate_only before committing.
+
+    config must be a dict matching SearchCampaignConfig:
+      campaign_name          -- string (required)
+      daily_budget_usd       -- float, >= 1.0 (required)
+      ad_groups              -- list of ad group dicts (required, >= 1), each:
+          name         -- string (required)
+          final_url    -- landing page URL, http(s) (required)
+          keywords     -- list of strings (default PHRASE) OR {text, match_type}
+                          dicts; match_type EXACT/PHRASE/BROAD (required, >= 1)
+          headlines    -- list of 3-15 strings, <= 30 chars each (required)
+          descriptions -- list of 2-4 strings, <= 90 chars each (required)
+          path1, path2 -- optional display-path segments, <= 15 chars each
+          cpc_bid_usd  -- optional ad-group max CPC; defaults to default_cpc_usd
+      bidding_strategy       -- "manual_cpc" (default) | "maximize_clicks"
+      default_cpc_usd        -- float, default 0.40 (manual_cpc bid / max_clicks ceiling)
+      geo_target_ids         -- list of strings, default ["2840"] (USA)
+      language_ids           -- list of strings, default ["1000"] (English)
+      enable_search_partners -- bool, default False
+      negative_keywords      -- list of strings added as campaign-level BROAD negatives
+
+    customer_id: 10-digit account ID.
+    """
+    return propose_search_campaign(get_client(), customer_id, config)  # type: ignore[arg-type]
+
+
+@mcp.tool()
+def get_google_ads_search_proposal(proposal_id: str) -> SearchProposal:
+    """Read and return a pending Search proposal by ID for review.
+
+    proposal_id: the short ID returned by propose_google_ads_search_campaign.
+    """
+    return get_search_proposal(proposal_id)
+
+
+@mcp.tool()
+def commit_google_ads_search_campaign(proposal_id: str) -> SearchCreationResult:
+    """Execute a pending Search proposal via one atomic Google Ads API call.
+
+    The campaign, ad groups, and ads are created in PAUSED status. No live serving
+    occurs until manually enabled. Builds budget, campaign (SEARCH, networks), geo and
+    language criteria, campaign-level negative keywords, and each ad group with its
+    keyword criteria and a Responsive Search Ad. Either everything applies or nothing does.
+
+    Writes a creation record to the audit log (audit.db). Marks the proposal committed.
+
+    proposal_id: the short ID returned by propose_google_ads_search_campaign.
+
+    Returns: campaign_resource_name, ad_group_resource_names, keyword_count, ad_count,
+    status="created_paused".
+    """
+    return commit_search_campaign(get_client(), proposal_id)
 
 
 if __name__ == "__main__":

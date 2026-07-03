@@ -253,7 +253,7 @@ When tasked with a change, use this table to find every file that needs updating
 | New or removed store | `stores_mapping.json` + `DIGEST_SKILL.md` (store mapping table) + `DIGEST_SOP.md` (Shopify stores mapping section) |
 | Store edge case behavior | `DIGEST_SKILL.md` (edge cases section in Step 5) + `DIGEST_SOP.md` (Known edge cases section) |
 | New MCP tool | `ads_mcp/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (if new GAQL queries) |
-| New or modified campaign creation tool | `ads_mcp/creation/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (sections 10-12; §12 = Standard Shopping) |
+| New or modified campaign creation tool | `ads_mcp/creation/<module>.py` (logic) + `mcp_server/server.py` (tool registration) + `GOOGLE_ADS_API_REFERENCE.md` (sections 10-14; §12 = Standard Shopping, §14 = Standard Search) |
 | DataFeedWatch lookup table / feed custom_label change | Use the `update_dfw_lookup_table` MCP tool (writes the `DFW_LOOKUP_SHEET_ID` Google Sheet that DFW reads). Code: `ads_mcp/sheets.py` (`write_dfw_lookup_table`) + `mcp_server/server.py`. NEVER set the label via the Shopify Google app or a Merchant Center supplemental feed -- DFW overwrites those. |
 | Evergreen / task-agnostic campaign creation finding (copy rule, pre-flight step, failure mode, store-level fact, etc.) | `CAMPAIGN_CREATION_BEST_PRACTICES.md` (canonical) -- after consulting Adam per the self-improvement rule in that file |
 | PMax image creative finding or preference (sourcing, prompts, mix, anti-patterns) | `PMAX_IMAGE_BEST_PRACTICES.md` (canonical) + any active campaign creation skill that references it (e.g. `PMAX_BRAND_BREAKOUT_SKILL.md`) |
