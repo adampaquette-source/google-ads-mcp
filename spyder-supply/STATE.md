@@ -1,6 +1,6 @@
 # Spyder Supply: Working State
 
-Last updated: 2026-06-19. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`.
+Last updated: 2026-07-03. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`.
 
 ## Current stage
 **Starter campaigns CREATED (PAUSED) 2026-07-03.** Both live in account `9267883382`, not serving:
@@ -8,7 +8,9 @@ Last updated: 2026-06-19. The live snapshot of where this account stands. Fast-c
 - **Shopping** `23999925116` "Spyder | Shopping | Curated (Core)" -- SHOPPING, Manual CPC $0.45, **$30/day**, gated `custom_label_2 = spyder_curated` (root SUBDIVISION + biddable UNIT + excluded everything-else, verified). Merchant Center **`5812518721`** (linked; flagged for misrepresentation -> cannot serve until cleared).
 - Both validated via `validate_only` before commit. Config artifacts: `starter_search_campaign.json`, `starter_shopping_campaign.json`. Proposals 80029a71 (search) / f381a04b (shopping), committed.
 
-**Before serving (Adam publishes as he sees fit):** (1) MC misrepresentation flag cleared, (2) DFW writing `custom_label_2` so `spyder_curated` has products, (3) conversion tracking verified. Search can go live independent of MC/DFW.
+**DFW `custom_label_2` lookup CONFIGURED + saved 2026-07-03** on the Spyder Google Shopping channel (DFW shop 156280, channel 340159), mirroring PWS: rule `Use lookup table` -> input `sku` -> `Add from URL` (Spyder tab CSV export `.../export?format=csv&gid=1369536402`), `Only IF sku is in list [same URL]`, ELSE leave empty. Live preview confirmed values flowing from the sheet. Data is in the shared DFW sheet's **`Spyder` tab** (gid 1369536402; PWS uses the first tab, gid 2073384052). Labels reach MC `5812518721` on the next feed refresh.
+
+**Before serving (Adam publishes as he sees fit):** (1) MC misrepresentation flag cleared, (2) **DONE - DFW writing `custom_label_2`** (curated/fallback), (3) conversion tracking verified. Search can go live independent of MC/DFW.
 
 ## What is live in the account
 Nothing -- new account `9267883382` is empty (0 campaigns). The predecessor TBO account `3174244337` is separately ENABLED with old truck-box history (not yet wound down).
@@ -41,6 +43,7 @@ Create it **from inside the MCC** (Accounts > + > Create new account) so it is n
 - Predecessor account `3174244337` (TBO) + its Merchant Center feed: wind down vs repurpose? Is a Merchant Center account linked to the new `9267883382` yet, and where does the Spyder product feed point?
 
 ## Changelog (newest first)
+- 2026-07-03: Loaded the Spyder DFW lookup + configured `custom_label_2` on the Google Shopping channel (via Claude-in-Chrome), mirroring PWS (Use lookup table + Add from URL of the Spyder tab CSV export + Only IF sku is in list + ELSE empty). Wrote 579 rows to the `Spyder` tab of the shared DFW sheet via the service account. Saved successfully; preview confirmed. DFW prerequisite now DONE.
 - 2026-07-03: Built the Standard Search creation tool (`ads_mcp/creation/search.py`, API ref section 14), then CREATED both starter campaigns PAUSED in `9267883382`: Search `23999926235` (11 ad groups/45 kw, full branded set) and Shopping `23999925116` (curated, gate `spyder_curated`, MC `5812518721`). 3 keywords (`spyder mach blue`/`mach-blue`/`black series`) dropped -- flagged EXEMPTIBLE under Google's "Guns" policy (Spyder = also a paintball brand); worth a policy-exemption feature later. MC linked but flagged for misrepresentation (serving blocked until cleared).
 - 2026-06-21: Built the full campaign plan. Pulled + segmented the 728-SKU active catalog; wrote CAMPAIGN_BUILD_SPEC.md (two Standard Shopping campaigns curated/fallback + branded Search 11 ad groups), persisted rosters + DFW lookup CSVs. Ready to push once MC feed + DFW + tracking are live.
 - 2026-06-19: Adam RATIFIED the path (D4-D8). Promoted cold-start evergreen distillation into PPC_ADVISOR.md. Account now blocked only on build-time prerequisites (feed/MC wiring, tracking verify, roster/budget).
