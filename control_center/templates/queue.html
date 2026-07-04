@@ -50,7 +50,7 @@
       <tr>
         <th style="width:32%">Campaign / flag</th>
         <th>Key metric</th>
-        <th>Trend (30d spend)</th>
+        <th>Trend 30d (<span style="color:#7aa2f7">spend</span> / <span style="color:#e0af68">revenue</span>)</th>
         <th>Change</th>
         <th>Snooze</th>
         <th></th>
@@ -104,7 +104,7 @@
         {% elif f.type in ('budget_constrained', 'budget_excess') and f.payload.suggested_budget %}
           <form class="d-flex gap-1 align-items-center" hx-post="/flags/{{ f.id }}/stage" hx-target="this" hx-swap="outerHTML">
             <span class="text-secondary small">$</span>
-            <input type="number" name="new_value" step="5" value="{{ f.payload.suggested_budget }}" class="form-control form-control-sm stage-input">
+            <input type="number" name="new_value" min="0" step="1" value="{{ [25, ((f.payload.suggested_budget / 25) | round(0, 'common') | int) * 25] | max }}" class="form-control form-control-sm stage-input">
             <button class="btn btn-sm">Stage</button>
           </form>
         {% elif f.type == 'spend_anomaly' %}

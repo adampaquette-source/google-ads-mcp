@@ -114,8 +114,8 @@ def mer_by_account(conn: sqlite3.Connection) -> dict[str, dict]:
     return out
 
 
-def sparkline(values: list[float], width: int = 140, height: int = 30) -> str:
-    """Inline SVG sparkline. Returns empty string for flat or missing series."""
+def _polyline(values: list[float], width: int, height: int, stroke: str) -> str:
+    """Build one normalized SVG polyline, scaled to its own min/max. Empty if flat."""
     pts = [v for v in values if v is not None]
     if len(pts) < 2:
         return ""
@@ -129,9 +129,29 @@ def sparkline(values: list[float], width: int = 140, height: int = 30) -> str:
         x = i * step
         y = height - 2 - ((v - lo) / span) * (height - 4)
         coords.append(f"{x:.1f},{y:.1f}")
+    return f'<polyline points="{" ".join(coords)}" fill="none" stroke="{stroke}" stroke-width="1.5"/>'
+
+
+def sparkline(
+    values: list[float],
+    width: int = 140,
+    height: int = 30,
+    overlay: list[float] | None = None,
+) -> str:
+    """Inline SVG sparkline. Returns empty string for flat or missing series.
+
+    The primary series renders in blue. An optional overlay series (e.g. revenue)
+    renders in yellow, scaled to its own range so both trends stay visible.
+    """
+    primary = _polyline(values, width, height, "#7aa2f7")
+    if not primary:
+        return ""
+    inner = primary
+    if overlay is not None:
+        inner += _polyline(overlay, width, height, "#e0af68")
     return (
         f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
-        f'<polyline points="{" ".join(coords)}" fill="none" stroke="#7aa2f7" stroke-width="1.5"/>'
+        f"{inner}"
         f"</svg>"
     )
 
@@ -216,7 +236,10 @@ def queue(request: Request):
 
         for f in flags:
             series = campaign_series(conn, f["customer_id"], f["campaign_id"], days=30)
-            f["spark"] = sparkline([r["cost"] for r in series])
+            f["spark"] = sparkline(
+                [r["cost"] for r in series],
+                overlay=[r["conv_value"] for r in series],
+            )
 
         groups: dict[str, list] = {}
         for f in flags:
@@ -641,6 +664,7 @@ def commit(request: Request):
                         "UPDATE flags SET status='committed' WHERE id=?", (r["flag_id"],)
                     )
             results.append({
+                "account_name": names.get(r["customer_id"], r["customer_id"]),
                 "campaign_name": r["campaign_name"],
                 "ad_group_name": r["ad_group_name"],
                 "change_type": r["change_type"],

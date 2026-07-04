@@ -6,10 +6,11 @@
   <div class="card-header py-2"><h3 class="card-title mb-0">Commit results</h3></div>
   <div class="table-responsive">
   <table class="table table-sm table-vcenter card-table">
-    <thead><tr><th>Campaign / ad group</th><th>Type</th><th>Change</th><th>Result</th></tr></thead>
+    <thead><tr><th>Account</th><th>Campaign / ad group</th><th>Type</th><th>Change</th><th>Result</th></tr></thead>
     <tbody>
     {% for r in results %}
     <tr>
+      <td>{{ r.account_name }}</td>
       <td>
         <strong>{{ r.campaign_name }}</strong>
         {% if r.ad_group_name %}<div class="text-secondary small">&#8627; {{ r.ad_group_name }}</div>{% endif %}
