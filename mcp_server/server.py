@@ -65,6 +65,16 @@ from ads_mcp.reporting.troas_audit import TroasAuditResult, build_troas_proposal
 from ads_mcp.reporting.budget_audit import build_budget_proposals
 from ads_mcp.proposals.troas import apply_troas_change, apply_troas_adgroup_change
 from ads_mcp.proposals.budget import apply_budget_change
+from ads_mcp.proposals.seasonality import (
+    SeasonalityAdjustmentConfig,
+    SeasonalityCommitResult,
+    SeasonalityProposal,
+    SeasonalityRemoveResult,
+    commit_seasonality_adjustment,
+    get_seasonality_proposal,
+    propose_seasonality_adjustment,
+    remove_seasonality_adjustment,
+)
 from ads_mcp.notify import (
     BudgetAuditCardData,
     BudgetCommitCardData,
@@ -1294,6 +1304,100 @@ def commit_google_ads_pmax_campaign(proposal_id: str) -> PMaxCreationResult:
     Returns: campaign_resource_name, asset_group_resource_names, status="created_paused".
     """
     return commit_pmax_campaign(get_client(), proposal_id)
+
+
+# ---------------------------------------------------------------------------
+# Smart Bidding seasonality adjustment tools (Phase 3)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def propose_google_ads_seasonality_adjustment(
+    customer_id: str,
+    config: dict,
+) -> SeasonalityProposal:
+    """Validate a Smart Bidding seasonality adjustment and store it as a pending proposal.
+
+    IMPORTANT: This tool does NOT change Google Ads. Review the returned proposal,
+    then call commit_google_ads_seasonality_adjustment(proposal_id) to execute it.
+
+    A seasonality adjustment tells Smart Bidding to expect a short-term conversion
+    rate change over a window (a sale, a holiday, a known slow weekend). Only
+    campaigns on Smart Bidding (Target ROAS, Target CPA, Maximize Conversions,
+    Maximize Conversion Value) are affected. Manual CPC and Maximize Clicks ignore it.
+    Use sparingly, for known events of 1 to 7 days (14 max); Smart Bidding handles
+    routine recurring seasonality on its own.
+
+    config must be a dict matching SeasonalityAdjustmentConfig:
+      name                      -- string label (required)
+      scope                     -- "CAMPAIGN" | "CHANNEL" (required)
+      conversion_rate_pct_change -- float, e.g. -20.0 for a 20% drop (required).
+                                   Resolves to conversion_rate_modifier = 1 + pct/100
+                                   (must land in [0.1, 10.0], i.e. -90% to +900%).
+      start_date_time           -- "yyyy-MM-dd HH:mm:ss" in the account timezone (required)
+      end_date_time             -- "yyyy-MM-dd HH:mm:ss", after start, window <= 14 days (required)
+      description               -- optional free text
+      campaign_ids              -- list of campaign IDs, required when scope == "CAMPAIGN"
+      advertising_channel_types -- list, required when scope == "CHANNEL"
+                                   (SEARCH, SHOPPING, DISPLAY, PERFORMANCE_MAX, VIDEO, DEMAND_GEN)
+      devices                   -- optional list (MOBILE, TABLET, DESKTOP, CONNECTED_TV, OTHER);
+                                   default = all devices
+
+    customer_id: 10-digit account ID.
+
+    Returns the proposal with a proposal_id and the resolved conversion_rate_modifier.
+    """
+    return propose_seasonality_adjustment(customer_id, config)  # type: ignore[arg-type]
+
+
+@mcp.tool()
+def get_google_ads_seasonality_proposal(proposal_id: str) -> SeasonalityProposal:
+    """Read and return a pending seasonality adjustment proposal by ID.
+
+    Use this to review the full config and resolved modifier before calling
+    commit_google_ads_seasonality_adjustment to execute it.
+
+    proposal_id: the short ID returned by propose_google_ads_seasonality_adjustment.
+    """
+    return get_seasonality_proposal(proposal_id)
+
+
+@mcp.tool()
+def commit_google_ads_seasonality_adjustment(proposal_id: str) -> SeasonalityCommitResult:
+    """Execute a pending seasonality adjustment via a single Google Ads API call.
+
+    Reads the proposal stored by propose_google_ads_seasonality_adjustment and
+    fires mutate_bidding_seasonality_adjustments. Writes an audit record to
+    audit.db (table seasonality_adjustment_log) before and after the call, and
+    marks the proposal committed on success.
+
+    proposal_id: the short ID returned by propose_google_ads_seasonality_adjustment.
+
+    Returns: resource_name, conversion_rate_modifier, scope, status="created".
+    """
+    return commit_seasonality_adjustment(get_client(), proposal_id)
+
+
+@mcp.tool()
+def remove_google_ads_seasonality_adjustment(
+    customer_id: str,
+    adjustment: str,
+) -> SeasonalityRemoveResult:
+    """Remove a live Smart Bidding seasonality adjustment (immediate reversal).
+
+    Use this to pull a scheduled or active adjustment back off an account before
+    it applies, or to undo a mistake. Unlike create, there is no propose step --
+    the removal happens immediately and is logged to audit.db with status 'removed'.
+
+    customer_id: 10-digit account ID.
+    adjustment:  the full resource name
+                 ("customers/{cid}/biddingSeasonalityAdjustments/{id}") or just
+                 the numeric seasonality_adjustment_id (e.g. the trailing number
+                 from a commit result's resource_name).
+
+    Returns: resource_name, status ("removed" on success, "error" otherwise),
+    and error message.
+    """
+    return remove_seasonality_adjustment(get_client(), customer_id, adjustment)
 
 
 # ---------------------------------------------------------------------------

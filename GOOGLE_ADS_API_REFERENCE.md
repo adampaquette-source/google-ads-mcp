@@ -515,6 +515,27 @@ Discovered via `validate_only` and a live commit. Use `validate_only` (set `Muta
 
 ---
 
+## 13. Smart Bidding seasonality adjustments
+
+Code: `ads_mcp/proposals/seasonality.py`; tools `propose_/get_/commit_google_ads_seasonality_adjustment`. Follows the PMax-style propose/commit pattern (JSON proposal keyed by short `proposal_id`, stored in `creation_proposals/seasonality_<id>.json`). Audited to `audit.db` table `seasonality_adjustment_log` before and after the write.
+
+### What it does
+Tells Smart Bidding to expect a short-term conversion-rate change over a window, so it moves bids in advance instead of learning after the fact. Sibling feature `BiddingDataExclusion` (not yet built) does the opposite: tells Smart Bidding to ignore a past window of bad data (tracking outage, site down).
+
+### Service and resource (verified against installed v24)
+- Service: `BiddingSeasonalityAdjustmentService`, method `mutate_bidding_seasonality_adjustments(customer_id, operations=[op])`.
+- Operation: `BiddingSeasonalityAdjustmentOperation`; use `operation.create` (no update_mask needed on create).
+- Resource fields: `name`, `description`, `scope`, `start_date_time`, `end_date_time`, `conversion_rate_modifier`, `devices`, `campaigns`, `advertising_channel_types`.
+
+### Field rules
+- **`scope`** (`SeasonalityEventScopeEnum`): use `CAMPAIGN` or `CHANNEL`. The enum also lists `CUSTOMER` but it is NOT valid for seasonality adjustments (API rejects it). CAMPAIGN targets specific `campaigns` (resource names); CHANNEL targets whole `advertising_channel_types` (SEARCH, SHOPPING, DISPLAY, PERFORMANCE_MAX, VIDEO, DEMAND_GEN) and auto-covers campaigns added during the window.
+- **`conversion_rate_modifier`** (double): the multiplier, not a percent. -20% -> `0.8`, +30% -> `1.3`. Allowed range `[0.1, 10.0]` (-90% to +900%). Our tool takes `conversion_rate_pct_change` and computes `1 + pct/100`.
+- **`start_date_time` / `end_date_time`**: string format `"yyyy-MM-dd HH:mm:ss"`, interpreted in the account timezone. Window max 14 days; Google recommends 1 to 7 days. Period is `[start, end)`, so to cover a full final day set end to `00:00:00` of the next day.
+- **`devices`** (`DeviceEnum`, optional): default all devices.
+- **Only affects Smart Bidding** (Target ROAS, Target CPA, Maximize Conversions, Maximize Conversion Value). Manual CPC and Maximize Clicks campaigns ignore it entirely. Confirm target campaigns' bid strategy first, or the adjustment is a no-op.
+
+---
+
 ## 14. Standard Search campaign creation
 
 Used for a cold-account branded Search campaign: a series of tight ad groups (one per demand cluster / collection), high-intent brand keywords, each ad group final-URL'd to its matching collection, with campaign-level negative keywords blocking irrelevant traffic. Implemented in `ads_mcp/creation/search.py` (propose/get/commit, mirroring `shopping.py`). Campaign, ad groups, and ads are all created PAUSED. Validated against a live account with `validate_only` (Spyder `9267883382`, 2026-07-03).
