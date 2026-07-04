@@ -1,9 +1,13 @@
 # Pro Work Supply: Working State
 
-Last updated: 2026-06-17. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`. For the full staged plan and roster see `STAGE1_PROPOSAL.md`. For the decision log see `DECISIONS.md`.
+Last updated: 2026-07-03. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`. For the full staged plan and roster see `STAGE1_PROPOSAL.md`. For the decision log see `DECISIONS.md`.
 
 ## Current stage
-**Stage 1 LIVE (enabled 2026-06-19).** Campaign `23958300224` (Standard Shopping, Manual CPC $0.55, ~$25/day) is ENABLED and serving against `custom_label_2 = pws_stage1_3m` (DFW feed confirmed green); campaign + ad group + product ad all ENABLED. PMax-A stays paused. Bidding is Manual CPC (D22): account too cold for conversion-based Shopping bidding. Weekly ops (D23) clock starts now; first review ~2026-06-26.
+**Stage 1 LIVE, ~2 weeks in; first search-term audit + aggressive negative pass done (2026-07-03).** Campaign `23958300224` (Standard Shopping, Manual CPC $0.55, $25/day). 14-day performance: **$352 spend, 765 clicks, 2 conversions, $106 value, ROAS 0.30** (well under the 500% breakeven; expected in learning). **Only ONE theme converts: hearing protection / earmuffs** (3M Peltor Optime; product H10B = 2 conv / $106 / ROAS 4.06). Welding helmets (Speedglas G5 alone $61/134 clicks/0 conv), respirators, lifelines, hard hats all 0 conv. Of the $200 in *disclosed* search-term spend, ~80% went to zero-conversion themes.
+
+## Search-term audit + negatives (2026-07-03)
+- Pulled 9,710 search terms (14 days). Disclosed spend $200 / 427 clicks / 1 disclosed conv ("3m earmuffs"); rest is Google's undisclosed bucket.
+- **Added 233 campaign-level negative keywords** to `23958300224` (was 0). Rule (per Adam): block **non-branded** generic queries, **keep any 3M / sub-brand query** (Speedglas, Peltor, Cubitron, Versaflo, Protecta, Securefit + model numbers 6800/8511/9100/etc.) and **all hearing-protection terms** (the converter). List: 186 EXACT (non-branded generic: welding helmet, n95 mask, dust mask, hard hat, self retracting lifeline, Spanish caretas/mascarillas, etc.) + 47 BROAD (competitor/retailer brands: miller, lincoln, esab, honeywell, msa, home depot, harbor freight, etc. + off-product: mowing/mower/lawn). Full list: `negatives_2026-07-03.csv`. ~$125 of disclosed clicked waste blocked; branded + hearing kept live.
 
 ## What is live in the account (as of 2026-06-19)
 - **8 campaigns, ALL PAUSED.** Nothing is serving. The new `23958300224` "PWS | Shopping | Stage 1 Learning (3M Core)" (Standard Shopping, Manual CPC $0.55, $25/day, gate `custom_label_2=pws_stage1_3m`, ad group `197719002237`) is PAUSED awaiting enable. PMax-A `23702140220` was paused by the commit (D17). The 6 older campaigns remain paused.
@@ -17,13 +21,14 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 - **Stage 2:** introduce the 3M-category Search campaign (D18 strategy, proworksupply.com), switch Shopping to Target ROAS starting ~400% **stepping toward an ~800% goal** (D19), and test PMax on proven winners. Trigger: ~30 conversions / 30 days.
 
 ## Last action
-2026-06-19: Committed the Stage 1 campaign (PAUSED) after fixing three platform issues the commit surfaced (required `contains_eu_political_advertising`; Shopping rejects conversion-based bidding on this cold account -> Manual CPC; Shopping rejects a language criterion). Made bidding configurable in `ads_mcp/creation/shopping.py`. Verified the campaign, ad group, budget, and listing-group gate. Pre-flight resolved by self-serve: Merchant Center `5748251237` (via product_link); primary purchase conversion = "Google Shopping App Purchase" (works).
+2026-07-03: First search-term audit (~2 weeks live). Added 233 campaign negatives (see above) to focus spend on branded + the converting hearing-protection theme. Diagnosed that only earmuffs/Peltor convert; welding + respirators + lifelines have 200+ combined clicks at 0 conv.
 
 ## Next action
-1. **Weekly ops automated (D23):** the `pws-weekly-ops` scheduled task runs Fridays ~9:23am local (first run 2026-06-26) and writes a dated report to `weekly_reviews/`. It proposes only -- Adam reviews each report and approves bid/roster/negative changes, which are then applied in a normal session. Adam should click "Run now" once to pre-approve the tools it uses.
-2. Early watch: confirm the campaign is getting impressions/clicks and whether any conversions register.
-3. **Conversion-action tidy (optional):** secondary duplicate purchase actions ("Purchase", "Purchase (1)") exist alongside the primary; harmless for bidding, worth cleaning in Goals.
-4. **Stage 2 unlock:** when conversions clear NOT_ENOUGH_CONVERSIONS, switch the campaign to Maximize Conversion Value (one propose/commit; bidding is now configurable), then tROAS toward 800%.
+1. **Watch the effect (3-5 days):** with 233 negatives live, confirm CPC/waste drops and whether conversions concentrate on hearing protection. Search IS was only 16% -- focused spend should lift IS on the terms that matter.
+2. **Strategic (propose to Adam):** the data argues for **concentrating the roster/budget on the converter**. Options: (a) tighten the DFW `pws_stage1_3m` roster toward hearing protection + proven/branded winners and trim the 0-conv long tail; (b) once hearing has ~15-20 conv, split it into its own campaign/higher bid. Only hearing has earned spend so far.
+3. **Build a negative-keyword propose/commit MCP tool** (still a gap; this pass was a one-off mutate script). The D23 weekly ops needs it.
+4. **Conversion-action tidy (optional):** duplicate secondary purchase actions exist; harmless, clean in Goals.
+5. **Stage 2 unlock:** when conversions clear NOT_ENOUGH_CONVERSIONS, switch to Maximize Conversion Value, then tROAS toward 800%.
 
 Done earlier 2026-06-19: built MCP tooling (Standard Shopping + DFW tools); DFW sheet created, shared, seeded (tab PWS_Stage1, sheet `1F8uQYzjLg3GK3ZDG6Xq5l6KpsyiNXy9LJvoRbZ20OHs`) and connected in DFW mapping `custom_label_2`.
 
@@ -38,6 +43,7 @@ Done earlier 2026-06-19: built MCP tooling (Standard Shopping + DFW tools); DFW 
 8. **Watch item (not a blocker):** store conversion capability. If the $25/day run shows near-zero CVR after the first 2-3 weeks, the bottleneck is the storefront, not the ads; pause and do store-readiness/CRO work before scaling.
 
 ## Changelog (newest first)
+- 2026-07-03: First search-term audit (~2 weeks live, $352/765 clicks/2 conv/ROAS 0.30). Only hearing protection converts. Added 233 campaign negatives (186 EXACT non-branded + 47 BROAD competitor/off-product) to `23958300224`, keeping all 3M/sub-brand + hearing terms. Blocked ~$125 of disclosed clicked waste. List in `negatives_2026-07-03.csv`. Flagged: refocus roster/budget on the converter; build a negative-keyword MCP tool.
 - 2026-06-19: ENABLED campaign `23958300224` (campaign + ad group + product ad). PWS is live for the first time with a coherent strategy. ~$25/day Manual CPC on the 60-SKU 3M roster.
 - 2026-06-19: COMMITTED Stage 1 campaign `23958300224` (PAUSED) + paused PMax-A, atomically. Ratified D22 (Manual CPC, account too cold for Smart Bidding) and D23 (weekly ops incl. negative-keywords pass). Made bidding configurable in the tool. Verified structure. First push to the account.
 - 2026-06-19: DFW lookup sheet seeded + connected. Discovered DFW maps **custom_label_2** (not _0); re-seeded sheet header to `custom_label_2`, updated build spec/NOTES to gate on index 2. Codified the DFW loop in memory. Pushed repo to GitHub (adampaquette-source/google-ads-mcp).

@@ -1,0 +1,234 @@
+match_type,keyword
+BROAD,amazon
+BROAD,antra
+BROAD,asbesto
+BROAD,asbestos
+BROAD,chicago electric
+BROAD,dewalt
+BROAD,ebay
+BROAD,esab
+BROAD,forney
+BROAD,grainger
+BROAD,gvs
+BROAD,hantavirus
+BROAD,harbor freight
+BROAD,hercules
+BROAD,hobart
+BROAD,home depot
+BROAD,honeywell
+BROAD,howard leight
+BROAD,iron man
+BROAD,jackson safety
+BROAD,klein
+BROAD,lawn
+BROAD,lincoln
+BROAD,lowe's
+BROAD,lowes
+BROAD,makita
+BROAD,menards
+BROAD,miller
+BROAD,milwaukee
+BROAD,moldex
+BROAD,mower
+BROAD,mowing
+BROAD,msa
+BROAD,northern tool
+BROAD,optrel
+BROAD,pyramex
+BROAD,radians
+BROAD,rural king
+BROAD,ryobi
+BROAD,sherwin williams
+BROAD,stihl
+BROAD,titanium
+BROAD,uline
+BROAD,walker's
+BROAD,walkers
+BROAD,yeswelder
+BROAD,zoro
+EXACT,air microclimate helmet
+EXACT,air microclimate precio
+EXACT,air shield pro
+EXACT,andeli welding helmet
+EXACT,arnes de careta de soldar
+EXACT,arnes de seguridad para alturas
+EXACT,arnes de seguridad yoyo
+EXACT,audifonos de seguridad
+EXACT,auto darkening pancake welding helmet
+EXACT,beard friendly respirator
+EXACT,beard safe respirator
+EXACT,brim hard hat
+EXACT,careta de soldar
+EXACT,careta de soldar jackson
+EXACT,careta para soldar
+EXACT,careta para soldar profesional
+EXACT,caretas de soldar
+EXACT,caretas de soldar personalizadas
+EXACT,caretas para soldar
+EXACT,casco de soldador precio
+EXACT,casco de soldadura
+EXACT,casco dielectrico
+EXACT,casco para soldar
+EXACT,cascos de construccion
+EXACT,class e hard hat
+EXACT,cleanspace respirator
+EXACT,cloth mask with vent
+EXACT,cool welding helmets
+EXACT,covert masks
+EXACT,cubre boca
+EXACT,cubreboca para pintar
+EXACT,cubrebocas walmart
+EXACT,custom welding helmets
+EXACT,different types of dust masks
+EXACT,duct mask
+EXACT,dust mask
+EXACT,dust mask for construction
+EXACT,dust mask for construction workers
+EXACT,dust mask helmet
+EXACT,ear safety headphones
+EXACT,expensive welding helmets
+EXACT,face mask
+EXACT,face mask for painting
+EXACT,fall arrest system
+EXACT,fall arrester device
+EXACT,fall protection
+EXACT,fall protection harness
+EXACT,fan for welding helmet
+EXACT,flapper wheel
+EXACT,frame backpack
+EXACT,fresh air mask for spray foam
+EXACT,fresh air paint mask
+EXACT,fresh air paint suit
+EXACT,full face gas mask
+EXACT,full face mask respirator
+EXACT,full face respirator
+EXACT,full face respirator for glasses wearers
+EXACT,fullface respirator
+EXACT,grass cutting mask for allergies
+EXACT,grass cutting respirator
+EXACT,hard hat
+EXACT,hard hat with welding hood
+EXACT,hardhat
+EXACT,harness lanyard
+EXACT,harness yoyo lanyard
+EXACT,helmet safety
+EXACT,horizontal lifeline
+EXACT,industrial face mask
+EXACT,life lines construction
+EXACT,linea de vida retractil
+EXACT,m 95 mask
+EXACT,m95 mask
+EXACT,macara con filtro
+EXACT,mascara de rostro completo
+EXACT,mascara de soldar
+EXACT,mascara de soldar con filtro de aire
+EXACT,mascara para el polvo
+EXACT,mascara para pintor
+EXACT,mascara para pintura industrial
+EXACT,mascaras de soldar
+EXACT,mascaras para pintar
+EXACT,mascarilla blanca
+EXACT,mascarilla de pintor
+EXACT,mascarilla n95 con filtro
+EXACT,mascarillas
+EXACT,mascarillas de filtros
+EXACT,mascarillas de seguridad industrial
+EXACT,mascarillas m3
+EXACT,mascarillas para el polvillo
+EXACT,mascarillas para el polvo
+EXACT,mascarillas para la boca
+EXACT,mascarillas para trabajar con quimicos
+EXACT,mask
+EXACT,mask costco
+EXACT,mask for painting cars
+EXACT,mask for spraying pesticides
+EXACT,masks for dust
+EXACT,microclimate respirator
+EXACT,n 100 mask
+EXACT,n100 mask
+EXACT,n35 mask price
+EXACT,n55 mask
+EXACT,n93 mask
+EXACT,n95 mascarilla
+EXACT,n95 mask
+EXACT,n95 mask breathable
+EXACT,n95 mask for mold
+EXACT,n95 masks
+EXACT,n95 respirator
+EXACT,new hard hats
+EXACT,new osha helmets
+EXACT,noise cancelling ear
+EXACT,noise cancelling headphones non electronic
+EXACT,noise reduction headphones
+EXACT,osha 1926.502
+EXACT,p100 respirator
+EXACT,pancake welding hood
+EXACT,panoramic welding helmet
+EXACT,papr respirator
+EXACT,papr respirator welding
+EXACT,papr welding hoods
+EXACT,portable air mask
+EXACT,positive air pressure respirator
+EXACT,positive pressure face mask
+EXACT,positive pressure respirator
+EXACT,price of n95 mask
+EXACT,proteccion de oidos
+EXACT,protective mask
+EXACT,real gas mask
+EXACT,resin fiber sanding disc
+EXACT,respirador de media cara
+EXACT,respirador full face
+EXACT,respirator
+EXACT,respirator for beards
+EXACT,respirator for men with beards
+EXACT,respirator for painting
+EXACT,respirator for resin
+EXACT,respirator m95
+EXACT,respirator mask
+EXACT,respirator masks n95
+EXACT,retractable harness
+EXACT,retractable lifeline
+EXACT,retractable safety
+EXACT,retractable tether
+EXACT,ribcap
+EXACT,roofing ropes
+EXACT,safety chemical mask
+EXACT,safety harness retractable lanyard
+EXACT,safety helmet
+EXACT,self retracting lanyard
+EXACT,self retracting lifeline
+EXACT,smoke mask
+EXACT,spray paint mask
+EXACT,supplied air respirators
+EXACT,types of respirators
+EXACT,ultra light welding helmet
+EXACT,v gard 900
+EXACT,voice activated welding helmet
+EXACT,walter enduro flex flap disc
+EXACT,weld hood
+EXACT,welders hard hat
+EXACT,welding gear
+EXACT,welding hard hat
+EXACT,welding hard hats
+EXACT,welding hardhat
+EXACT,welding helmet
+EXACT,welding helmet auto darkening
+EXACT,welding helmet light
+EXACT,welding helmet with respirator
+EXACT,welding helmets
+EXACT,welding hood
+EXACT,welding hood clear lens
+EXACT,welding hood flip lens
+EXACT,welding hood hard hat adapter
+EXACT,welding hood with respirator
+EXACT,welding hoods
+EXACT,welding hoods with respirators
+EXACT,welding mask
+EXACT,wide view welding helmet
+EXACT,woodworking respirator helmet
+EXACT,yo yo lanyard retractable lifeline
+EXACT,yoyo de seguridad
+EXACT,yoyo for harness
+EXACT,yoyo harness
+EXACT,yoyo safety harness
+EXACT,маска сварщика
