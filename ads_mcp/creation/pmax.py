@@ -21,6 +21,7 @@ from google.ads.googleads.client import GoogleAdsClient
 from typing_extensions import TypedDict
 
 from ads_mcp.creation.listing_groups import (
+    build_brand_breakout_tree_ops,
     build_brand_subdivision_ops,
     build_root_listing_group_ops,
 )
@@ -51,19 +52,45 @@ def _proposal_path(proposal_id: str) -> Path:
 # TypedDicts
 # ---------------------------------------------------------------------------
 
-class AssetGroupConfig(TypedDict):
+class AssetGroupConfig(TypedDict, total=False):
     name: str
     brand_name: Optional[str]           # None = all products; str = brand subdivision
+    # listing_filter selects how the asset group's listing group tree is built:
+    #   "brand_breakout" -> full ToolUp custom-label breakout tree (matches the
+    #                       existing Ridgid/Greenlee/Milwaukee/Dewalt campaigns);
+    #                       requires brand_name.
+    #   "brand"          -> simple product_brand subdivision (brand + other). requires brand_name.
+    #   "all" / omitted  -> all products (root include), or brand subdivision if brand_name set.
+    listing_filter: Optional[str]
     final_url: str
     headlines: list[str]                # 3-15 entries, max 30 chars each
     long_headlines: list[str]           # 1-5 entries, max 90 chars each
     descriptions: list[str]            # 2-5 entries, max 90 chars; 1 must be <=60 chars
+    # Images: either the singular *_resource fields (one each) or the plural
+    # *_resources lists (many each). At least one landscape and one square required.
     landscape_image_resource: str       # pre-uploaded 1.91:1 image asset resource name
     square_image_resource: str          # pre-uploaded 1:1 image asset resource name
+    landscape_image_resources: list[str]
+    square_image_resources: list[str]
+    portrait_image_resources: list[str]  # optional 4:5 images
     search_themes: list[str]            # brand-specific search themes (up to 25)
 
 
-class PMaxCampaignConfig(TypedDict):
+def _landscape_resources(ag: "AssetGroupConfig") -> list[str]:
+    vals = list(ag.get("landscape_image_resources") or [])
+    if not vals and ag.get("landscape_image_resource"):
+        vals = [ag["landscape_image_resource"]]
+    return [v for v in vals if v]
+
+
+def _square_resources(ag: "AssetGroupConfig") -> list[str]:
+    vals = list(ag.get("square_image_resources") or [])
+    if not vals and ag.get("square_image_resource"):
+        vals = [ag["square_image_resource"]]
+    return [v for v in vals if v]
+
+
+class PMaxCampaignConfig(TypedDict, total=False):
     campaign_name: str
     daily_budget_usd: float
     target_roas_pct: float              # e.g. 400.0 = 400% ROAS
@@ -71,6 +98,12 @@ class PMaxCampaignConfig(TypedDict):
     logo_image_resource: str            # pre-uploaded 1:1 logo resource name (campaign level)
     geo_target_ids: list[str]           # e.g. ["2840"] for USA
     language_ids: list[str]             # e.g. ["1000"] for English
+    # Merchant Center link -- REQUIRED for any asset group whose listing filter
+    # uses a SHOPPING listing source (brand / brand_breakout). Without it the API
+    # rejects the listing source ("not allowed in the context").
+    merchant_id: Optional[int]
+    feed_label: str                     # e.g. "US" (defaults to "US" if omitted)
+    enable_local: bool                  # match existing account campaigns
     asset_groups: list[AssetGroupConfig]
 
 
@@ -126,10 +159,16 @@ def _validate_config(config: PMaxCampaignConfig) -> list[str]:
             errors.append(f"{prefix}: name is required")
         if not ag.get("final_url", "").strip():
             errors.append(f"{prefix}: final_url is required")
-        if not ag.get("landscape_image_resource", "").strip():
-            errors.append(f"{prefix}: landscape_image_resource is required")
-        if not ag.get("square_image_resource", "").strip():
-            errors.append(f"{prefix}: square_image_resource is required")
+        if not _landscape_resources(ag):
+            errors.append(f"{prefix}: at least one landscape image is required "
+                          "(landscape_image_resource or landscape_image_resources)")
+        if not _square_resources(ag):
+            errors.append(f"{prefix}: at least one square image is required "
+                          "(square_image_resource or square_image_resources)")
+
+        listing_filter = ag.get("listing_filter")
+        if listing_filter in ("brand", "brand_breakout") and not ag.get("brand_name"):
+            errors.append(f"{prefix}: listing_filter={listing_filter!r} requires brand_name")
 
         if len(headlines) < 3:
             errors.append(f"{prefix}: at least 3 headlines required, got {len(headlines)}")
@@ -335,6 +374,16 @@ def _build_mutate_operations(
     camp.campaign_budget = budget_resource
     camp.maximize_conversion_value.target_roas = config["target_roas_pct"] / 100.0
     camp.brand_guidelines_enabled = True
+    # Required since v17+: declare EU political advertising status.
+    camp.contains_eu_political_advertising = (
+        client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
+    )
+    # Merchant Center link: gives the campaign a Shopping context so asset group
+    # listing filters (SHOPPING listing source) are allowed and products serve.
+    if config.get("merchant_id"):
+        camp.shopping_setting.merchant_id = int(config["merchant_id"])
+        camp.shopping_setting.feed_label = config.get("feed_label", "US")
+        camp.shopping_setting.enable_local = bool(config.get("enable_local", True))
     ops.append(op)
 
     # ----- 3. CampaignCriteria (geo + language) -----
@@ -435,11 +484,17 @@ def _build_mutate_operations(
                 aga.field_type = field_type
                 ops.append(op)
 
-        # Image assets (pre-uploaded, referenced by resource name)
-        for img_resource, field_type_name in [
-            (ag_cfg["landscape_image_resource"], "MARKETING_IMAGE"),
-            (ag_cfg["square_image_resource"], "SQUARE_MARKETING_IMAGE"),
-        ]:
+        # Image assets (pre-uploaded, referenced by resource name). Supports many
+        # per field type via the *_resources lists (falls back to the singular field).
+        img_jobs: list[tuple[str, str]] = []
+        for r in _landscape_resources(ag_cfg):
+            img_jobs.append((r, "MARKETING_IMAGE"))
+        for r in _square_resources(ag_cfg):
+            img_jobs.append((r, "SQUARE_MARKETING_IMAGE"))
+        for r in (ag_cfg.get("portrait_image_resources") or []):
+            if r:
+                img_jobs.append((r, "PORTRAIT_MARKETING_IMAGE"))
+        for img_resource, field_type_name in img_jobs:
             field_type = getattr(client.enums.AssetFieldTypeEnum, field_type_name)
             op = client.get_type("MutateOperation")
             aga = op.asset_group_asset_operation.create
@@ -462,8 +517,17 @@ def _build_mutate_operations(
     for idx, ag_cfg in enumerate(config["asset_groups"]):
         ag_resource = asset_group_resources_list[idx]
         brand_name = ag_cfg.get("brand_name")
+        listing_filter = ag_cfg.get("listing_filter")
 
-        if brand_name:
+        if listing_filter == "brand_breakout" and brand_name:
+            lgf_ops = build_brand_breakout_tree_ops(
+                client=client,
+                customer_id=customer_id,
+                asset_group_temp_resource=ag_resource,
+                brand_name=brand_name,
+                alloc=next_temp,
+            )
+        elif brand_name:
             lgf_ops = build_brand_subdivision_ops(
                 client=client,
                 customer_id=customer_id,

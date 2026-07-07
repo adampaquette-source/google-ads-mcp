@@ -22,7 +22,7 @@ Aim for **10 approved images per asset group**, max 20 (Google's hard limit per 
 | Type | Purpose | Funnel stage | Approximate share | Count target |
 |---|---|---|---|---|
 | **Studio product on white / light** | Show product clearly, build trust | Consideration | 30% | ~3 |
-| **Lifestyle / in-use** | Product in real-world trade environment | Awareness, consideration | 40% | ~4 |
+| **Lifestyle / in-space (no interaction)** | Product staged in a real trade environment, not being operated | Awareness, consideration | 40% | ~4 |
 | **Close-up detail** | Build quality, feature callouts | Consideration | 15% | ~2 |
 | **Contextual scene** | Wider environment that signals the buyer's world | Awareness | 15% | ~1-2 |
 
@@ -151,6 +151,8 @@ Do not upload rejected images. Keep them in `rejected/` for audit and iteration 
 
 See `GENERATED_IMAGE_BEST_PRACTICES.md` for Codex-specific lessons and retry workflow.
 
+**No-interaction rule (default case).** Do NOT generate or composite the product physically interacting with other objects (cord being plugged in, hand pulling a trigger, saw cutting a beam, tool driving a rod, pump moving water). Physical interaction is the main failure mode of this kind of generation: the model renders the contact/connection point implausibly (e.g. a cord plugged into the power switch instead of an outlet). The default is a hero shot of the product (or a 2-3 product composition) staged in a relevant space, not being used. The product being **held** is a tolerable secondary case, since there is no complex functional contact point to get wrong. Environment, lighting, and camera angle create the lifestyle feel; the product simply sits in the scene.
+
 Rules:
 
 1. **Hard stop before generating:** if the selected local source image has not been passed, attached, or revealed to the generation context, do not generate. In Codex, call `view_image` on each selected local source file immediately before `image_gen`.
@@ -174,10 +176,10 @@ Rules:
 - Lighting: soft directional, premium catalog look
 - Format: square 1200x1200 primary, landscape 1200x628 crop variant
 
-**Prompt 2 -- Lifestyle / in-use supplement**
-- Composition: product being used in the trade environment buyer recognizes
+**Prompt 2 -- Lifestyle / in-space supplement (no interaction -- see the No-interaction rule above)**
+- Composition: the product staged in the trade environment the buyer recognizes, sitting in the scene -- NOT being operated or connected to anything. Held-in-hand is the only tolerable interaction.
 - **Reference input:** visible or attached source image of the actual product (mandatory); record the direct CDN URL in the manifest
-- Prompt must say: preserve the exact visible product, only change environment, lighting, and camera angle
+- Prompt must say: preserve the exact visible product, only change environment, lighting, and camera angle; the product is placed in the space, not being used
 - Real-world lighting with mood (jobsite floodlight, golden hour, workshop overhead, etc.)
 - Format: landscape 1200x628 primary
 
@@ -237,6 +239,8 @@ This image becomes the asset group's anchor. Other images in the mix provide var
 - Generic "professional" stock not signaling the actual trade
 - **Generation prompts that only include product URLs or text descriptions** -- generic output, brand drift, fantasy products, wasted iterations
 - **Generation prompts that do not explicitly command source-product preservation** -- the model may redesign the product even when an image is present
+- **Depicting the product physically interacting with other objects** (plugged in, operated, cutting, driving, pumping) -- the rendered contact/connection point is the main defect in generated images. Default to product-in-space; held-in-hand is the only tolerable interaction. See the No-interaction rule.
+- **Garbled or invented product logos / lettering** -- even the product's OWN wordmark rendered illegibly (e.g. an on-blade "makita" that comes out "makitn") is an automatic reject. Fine text on blade faces and small spec labels garbles at any quality tier. Mitigate by framing branded faces edge-on or out of frame, leaning on large body logos (which render cleanly), instructing the model to leave a surface plain rather than write distorted text, and using the high tier when a legible logo matters; composite if it persists.
 
 ---
 
