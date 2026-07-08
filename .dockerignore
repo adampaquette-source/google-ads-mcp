@@ -1,0 +1,33 @@
+# Secrets — must never enter a build context or image layer.
+.env
+.env.*
+Credentials/
+
+# Local state — stays on the operator machine (hosted mode uses the /data volume).
+audit.db
+*.db
+creation_proposals/
+campaign_assets/
+proposals/
+
+# Docs, reports, and working files — not needed by the server process.
+*.md
+*.docx
+*.xlsx
+*.log
+pro-work-supply/
+spyder-supply/
+shopify_mcp/
+scripts/
+digest_worker/
+.claude/
+.codex/
+.mcp.json
+
+# Local dev artifacts.
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.git/
+.DS_Store

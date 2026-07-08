@@ -1,7 +1,11 @@
-"""FastMCP server -- exposes Google Ads tools over stdio."""
+"""FastMCP server -- Google Ads tools over stdio (local) or Streamable HTTP (hosted)."""
+
+import os
 
 from typing import Optional
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 from ads_mcp.client import get_client
 from ads_mcp.reporting.accounts import AccountInfo, list_accounts
@@ -113,7 +117,29 @@ from ads_mcp.sheets import (
     read_dfw_lookup_table,
 )
 
-mcp: FastMCP = FastMCP("google-ads")
+# HTTP mode (PORT set) gets Google OAuth + role-based authorization; stdio
+# mode (local Claude Code) stays unauthenticated and unfiltered as before.
+# authn.build_auth() is fail-closed: HTTP without complete auth config
+# aborts startup unless MCP_ALLOW_NO_AUTH=1 (platform-private services only).
+_HTTP_MODE = bool(os.environ.get("PORT"))
+_auth = None
+if _HTTP_MODE:
+    from mcp_server.authn import build_auth
+
+    _auth = build_auth()
+
+mcp: FastMCP = FastMCP("google-ads", auth=_auth)
+
+if _HTTP_MODE:
+    from mcp_server.authz import RoleAuthzMiddleware
+
+    mcp.add_middleware(RoleAuthzMiddleware())
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request: Request) -> PlainTextResponse:
+    # Unauthenticated liveness probe for Railway health checks — no account data.
+    return PlainTextResponse("ok")
 
 
 def _parse_date_range(date_range: str) -> str | dict:
@@ -128,7 +154,7 @@ def _parse_date_range(date_range: str) -> str | dict:
 # Account tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def list_google_ads_accounts() -> list[AccountInfo]:
     """List all Google Ads accounts visible under the MCC.
 
@@ -138,7 +164,7 @@ def list_google_ads_accounts() -> list[AccountInfo]:
     return list_accounts(get_client())
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_account_summary(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -159,7 +185,7 @@ def get_google_ads_account_summary(
 # Performance tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_campaign_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -181,7 +207,7 @@ def get_google_ads_campaign_performance(
     return get_campaign_performance(get_client(), customer_id, _parse_date_range(date_range), filters)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_ad_group_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -196,7 +222,7 @@ def get_google_ads_ad_group_performance(
     return get_ad_group_performance(get_client(), customer_id, _parse_date_range(date_range), campaign_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_search_terms(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -213,7 +239,7 @@ def get_google_ads_search_terms(
     return get_search_terms(get_client(), customer_id, _parse_date_range(date_range), campaign_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_keyword_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -229,7 +255,7 @@ def get_google_ads_keyword_performance(
     return get_keyword_performance(get_client(), customer_id, _parse_date_range(date_range))
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_product_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -245,7 +271,7 @@ def get_google_ads_product_performance(
     return get_product_performance(get_client(), customer_id, _parse_date_range(date_range))
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def classify_google_ads_product_velocity(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -289,7 +315,7 @@ def classify_google_ads_product_velocity(
 # Health check tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def check_google_ads_troas_pacing(
     customer_id: str,
     drift_pct: float = 10.0,
@@ -306,7 +332,7 @@ def check_google_ads_troas_pacing(
     return check_troas_pacing(get_client(), customer_id, drift_pct)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def check_google_ads_budget_pacing(
     customer_id: str,
 ) -> list[BudgetPacingResult]:
@@ -321,7 +347,7 @@ def check_google_ads_budget_pacing(
     return check_budget_pacing(get_client(), customer_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def find_google_ads_anomalies(
     customer_id: str,
     metric: str = "cost",
@@ -339,7 +365,7 @@ def find_google_ads_anomalies(
     return find_anomalies(get_client(), customer_id, metric, sensitivity)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def find_google_ads_disapprovals(
     customer_id: str,
 ) -> DisapprovalsResult:
@@ -358,7 +384,7 @@ def find_google_ads_disapprovals(
 # Digest tools (Phase 2)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_cross_account_digest(
     date_range: str = "LAST_7_DAYS",
 ) -> DigestData:
@@ -376,7 +402,7 @@ def get_google_ads_cross_account_digest(
     return get_cross_account_digest(get_client(), date_range)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def update_google_ads_sheets_dashboard(
     digest_data: dict,
 ) -> dict:
@@ -400,7 +426,7 @@ def update_google_ads_sheets_dashboard(
     return {"status": "ok", "dashboard_url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_mer_data(
     date_range: str = "LAST_7_DAYS",
 ) -> MerAdsData:
@@ -430,7 +456,7 @@ def get_google_ads_mer_data(
     return get_mer_ads_data(get_client(), _parse_date_range(date_range))  # type: ignore[arg-type]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def update_mer_report_tab(mer_data: dict) -> dict:
     """Write a fully assembled MER report to the MER tab in the Google Ads Performance Dashboard.
 
@@ -485,7 +511,7 @@ def update_mer_report_tab(mer_data: dict) -> dict:
     return {"status": "ok", "mer_tab_url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def post_digest_to_google_chat(message: str) -> PostResult:
     """Post a digest narrative to the Google Chat space via the configured webhook.
 
@@ -498,7 +524,7 @@ def post_digest_to_google_chat(message: str) -> PostResult:
     return post_to_google_chat(message)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def post_digest_card_to_google_chat(card_data: dict) -> PostResult:
     """Post the daily or weekly digest as a structured Google Chat card.
 
@@ -552,7 +578,7 @@ def post_digest_card_to_google_chat(card_data: dict) -> PostResult:
 # tROAS audit + commit tools (Phase 3)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def run_troas_audit() -> dict:
     """Run the M/W/F tROAS adjustment audit across all Google Ads accounts.
 
@@ -657,7 +683,7 @@ def run_troas_audit() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_troas_changes() -> dict:
     """Apply all Approved rows from the tROAS Proposals tab to Google Ads.
 
@@ -811,7 +837,7 @@ def commit_troas_changes() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def check_troas_rollback() -> dict:
     """Check campaigns adjusted in the last 72h for conversion dropoffs.
 
@@ -866,7 +892,7 @@ def check_troas_rollback() -> dict:
     return {"status": "ok", "flags": flags}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def check_troas_reminder() -> dict:
     """Check if the tROAS Proposals tab has undecided rows and post a reminder if so.
 
@@ -908,7 +934,7 @@ def check_troas_reminder() -> dict:
 # Budget audit + commit tools (Phase 3)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def run_budget_audit() -> dict:
     """Run the budget audit across all Google Ads accounts.
 
@@ -980,7 +1006,7 @@ def run_budget_audit() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_budget_changes() -> dict:
     """Apply budget changes from the Budget Proposals tab.
 
@@ -1141,7 +1167,7 @@ def commit_budget_changes() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_all_changes() -> dict:
     """Apply all pending changes from both the tROAS Proposals and Budget Proposals tabs.
 
@@ -1169,7 +1195,7 @@ def commit_all_changes() -> dict:
 # Brand analytics + image asset tools (Phase 4)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_brand_performance(
     customer_id: str,
     date_range: str = "LAST_30_DAYS",
@@ -1190,7 +1216,7 @@ def get_google_ads_brand_performance(
     return get_brand_performance(get_client(), customer_id, _parse_date_range(date_range))
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def list_google_ads_image_assets(
     customer_id: str,
 ) -> list[ImageAssetInfo]:
@@ -1206,7 +1232,7 @@ def list_google_ads_image_assets(
     return list_image_assets(get_client(), customer_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def upload_google_ads_image_asset(
     customer_id: str,
     image_url: str,
@@ -1232,7 +1258,7 @@ def upload_google_ads_image_asset(
     return {"resource_name": resource_name, "asset_name": asset_name, "status": "uploaded"}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def propose_google_ads_pmax_campaign(
     customer_id: str,
     config: dict,
@@ -1271,7 +1297,7 @@ def propose_google_ads_pmax_campaign(
     return propose_pmax_campaign(get_client(), customer_id, config)  # type: ignore[arg-type]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_pmax_proposal(proposal_id: str) -> PMaxProposal:
     """Read and return a pending PMax campaign proposal by ID.
 
@@ -1283,7 +1309,7 @@ def get_google_ads_pmax_proposal(proposal_id: str) -> PMaxProposal:
     return get_pmax_proposal(proposal_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_google_ads_pmax_campaign(proposal_id: str) -> PMaxCreationResult:
     """Execute a pending PMax campaign proposal via a single atomic Google Ads API call.
 
@@ -1310,7 +1336,7 @@ def commit_google_ads_pmax_campaign(proposal_id: str) -> PMaxCreationResult:
 # Smart Bidding seasonality adjustment tools (Phase 3)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def propose_google_ads_seasonality_adjustment(
     customer_id: str,
     config: dict,
@@ -1349,7 +1375,7 @@ def propose_google_ads_seasonality_adjustment(
     return propose_seasonality_adjustment(customer_id, config)  # type: ignore[arg-type]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_seasonality_proposal(proposal_id: str) -> SeasonalityProposal:
     """Read and return a pending seasonality adjustment proposal by ID.
 
@@ -1361,7 +1387,7 @@ def get_google_ads_seasonality_proposal(proposal_id: str) -> SeasonalityProposal
     return get_seasonality_proposal(proposal_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_google_ads_seasonality_adjustment(proposal_id: str) -> SeasonalityCommitResult:
     """Execute a pending seasonality adjustment via a single Google Ads API call.
 
@@ -1377,7 +1403,7 @@ def commit_google_ads_seasonality_adjustment(proposal_id: str) -> SeasonalityCom
     return commit_seasonality_adjustment(get_client(), proposal_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False})
 def remove_google_ads_seasonality_adjustment(
     customer_id: str,
     adjustment: str,
@@ -1416,7 +1442,7 @@ def _dfw_sheet_id() -> str:
     return sid
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def update_dfw_lookup_table(rows: list[dict], tab: str = "Sheet1", clear: bool = True) -> dict:
     """Overwrite a DataFeedWatch lookup-table tab in the configured Google Sheet.
 
@@ -1437,7 +1463,7 @@ def update_dfw_lookup_table(rows: list[dict], tab: str = "Sheet1", clear: bool =
     return {"tab": tab, "rows_written": len(rows), "sheet_url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_dfw_lookup_table(tab: str = "Sheet1") -> list[dict]:
     """Read back a DataFeedWatch lookup-table tab as a list of header-keyed dicts.
 
@@ -1451,7 +1477,7 @@ def get_dfw_lookup_table(tab: str = "Sheet1") -> list[dict]:
 # Standard Shopping campaign creation tools (propose / get / commit)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def propose_google_ads_standard_shopping_campaign(
     customer_id: str,
     config: dict,
@@ -1489,7 +1515,7 @@ def propose_google_ads_standard_shopping_campaign(
     return propose_standard_shopping_campaign(get_client(), customer_id, config)  # type: ignore[arg-type]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_standard_shopping_proposal(proposal_id: str) -> ShoppingProposal:
     """Read and return a pending Standard Shopping proposal by ID for review.
 
@@ -1498,7 +1524,7 @@ def get_google_ads_standard_shopping_proposal(proposal_id: str) -> ShoppingPropo
     return get_shopping_proposal(proposal_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_google_ads_standard_shopping_campaign(proposal_id: str) -> ShoppingCreationResult:
     """Execute a pending Standard Shopping proposal via one atomic Google Ads API call.
 
@@ -1523,7 +1549,7 @@ def commit_google_ads_standard_shopping_campaign(proposal_id: str) -> ShoppingCr
 # Standard Search campaign creation tools (propose / get / commit)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def propose_google_ads_search_campaign(
     customer_id: str,
     config: dict,
@@ -1562,7 +1588,7 @@ def propose_google_ads_search_campaign(
     return propose_search_campaign(get_client(), customer_id, config)  # type: ignore[arg-type]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def get_google_ads_search_proposal(proposal_id: str) -> SearchProposal:
     """Read and return a pending Search proposal by ID for review.
 
@@ -1571,7 +1597,7 @@ def get_google_ads_search_proposal(proposal_id: str) -> SearchProposal:
     return get_search_proposal(proposal_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_google_ads_search_campaign(proposal_id: str) -> SearchCreationResult:
     """Execute a pending Search proposal via one atomic Google Ads API call.
 
@@ -1594,7 +1620,7 @@ def commit_google_ads_search_campaign(proposal_id: str) -> SearchCreationResult:
 # Wasted-keyword (negative-keyword) audit tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def run_waste_audit(customer_id: Optional[str] = None, date_range: str = "LAST_30_DAYS") -> dict:
     """Run the wasted-keyword audit and populate the control center Negatives tab.
 
@@ -1640,7 +1666,7 @@ def run_waste_audit(customer_id: Optional[str] = None, date_range: str = "LAST_3
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_negative_keywords(customer_id: str) -> dict:
     """Apply approved negatives for one account as a shared negative keyword list.
 
@@ -1728,7 +1754,7 @@ def commit_negative_keywords(customer_id: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def commit_account_level_negatives(customer_id: str) -> dict:
     """Apply approved negatives for one account to the ACCOUNT-LEVEL negative list.
 
@@ -1820,4 +1846,34 @@ def commit_account_level_negatives(customer_id: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    port = os.environ.get("PORT")
+    if port:
+        # Hosted mode (Railway sets PORT): Streamable HTTP.
+        # MCP_ALLOWED_HOSTS: comma-separated fnmatch patterns for the Host
+        # header (DNS-rebinding guard); must include the Railway probe hosts.
+        # Railway's edge terminates TLS, so the browser Origin (https) never
+        # equals the scheme-derived request origin (http) — allow the public
+        # origin explicitly and honor X-Forwarded-Proto.
+        allowed_hosts = [
+            h.strip()
+            for h in os.environ.get("MCP_ALLOWED_HOSTS", "").split(",")
+            if h.strip()
+        ]
+        allowed_origins = [
+            o.strip()
+            for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",")
+            if o.strip()
+        ]
+        base_url = os.environ.get("MCP_BASE_URL", "").rstrip("/")
+        if base_url and base_url not in allowed_origins:
+            allowed_origins.append(base_url)
+        mcp.run(
+            transport="http",
+            host="0.0.0.0",
+            port=int(port),
+            allowed_hosts=allowed_hosts or None,
+            allowed_origins=allowed_origins or None,
+            uvicorn_config={"forwarded_allow_ips": "*"},
+        )
+    else:
+        mcp.run()  # stdio transport — spawned as subprocess by Claude Code

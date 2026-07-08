@@ -1,5 +1,6 @@
-"""Service account credential loading for local (file) and cloud (Secret Manager) environments."""
+"""Service account credential loading for local (file) and hosted (inline env) environments."""
 
+import json
 import os
 from pathlib import Path
 
@@ -12,6 +13,14 @@ _SCOPES = ["https://www.googleapis.com/auth/adwords"]
 
 
 def get_credentials() -> service_account.Credentials:
+    # Hosted mode: the key JSON is pasted into a platform secret variable —
+    # no key file ever enters the image or the build context.
+    inline = os.getenv("GOOGLE_ADS_SERVICE_ACCOUNT_JSON")
+    if inline:
+        return service_account.Credentials.from_service_account_info(
+            json.loads(inline), scopes=_SCOPES
+        )
+
     env = os.getenv("ADS_MCP_ENV", "local")
 
     if env == "local":

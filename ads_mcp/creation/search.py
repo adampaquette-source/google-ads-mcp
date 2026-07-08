@@ -35,6 +35,13 @@ from typing_extensions import TypedDict
 # ---------------------------------------------------------------------------
 
 def _proposals_dir() -> Path:
+    # Hosted mode: proposals live on the persistent volume — the container's
+    # source tree is root-owned and its contents die on redeploy.
+    data_dir = os.environ.get("MCP_DATA_DIR", "").strip()
+    if data_dir:
+        d = Path(data_dir) / "creation_proposals"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
     here = Path(__file__).resolve()
     root = here
     for _ in range(6):
