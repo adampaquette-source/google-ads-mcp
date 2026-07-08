@@ -12,6 +12,21 @@ proposals/
 
 # Docs, reports, and working files — not needed by the server process.
 *.md
+# ...except the reference playbooks served by the reference tools
+# (keep in sync with mcp_server/references.py and the Dockerfile COPY).
+!CAMPAIGN_CREATION_BEST_PRACTICES.md
+!ASSET_CREATION_SKILL.md
+!PMAX_BRAND_BREAKOUT_SKILL.md
+!AI_MAX_SKILL.md
+!PMAX_IMAGE_BEST_PRACTICES.md
+!GENERATED_IMAGE_BEST_PRACTICES.md
+!NEGATIVE_KEYWORD_AUDIT_SKILL.md
+!WASTED_SPEND_REMEDIATION.md
+!PPC_ADVISOR.md
+!DIGEST_SKILL.md
+!DIGEST_SOP.md
+!STORE_PROFILES.md
+!GCHAT_CARD_SCHEMA.md
 *.docx
 *.xlsx
 *.log

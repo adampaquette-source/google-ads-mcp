@@ -116,6 +116,34 @@ from ads_mcp.sheets import (
     write_dfw_lookup_table,
     read_dfw_lookup_table,
 )
+from mcp_server.references import list_references_impl, read_reference_impl
+
+# Injected into every client session at initialize. Hard rules only; the
+# full playbooks live behind the reference tools.
+_INSTRUCTIONS = """\
+Toolup Google Ads connector (single MCC, ~20 sub-accounts, all owned by the org).
+
+- Every write follows propose, human approval, then commit. Never call a
+  commit_* tool without the user's explicit approval of the specific proposal
+  in this conversation. Campaigns created via the API are always PAUSED.
+- commit_troas_changes / commit_budget_changes / commit_all_changes apply every
+  Approve row in the Google Sheets proposals tab. Confirm the user has reviewed
+  the sheet before calling.
+- run_*_audit, check_troas_*, post_digest_*, and update_* tools have side
+  effects (Google Sheets writes, Google Chat posts). Tell the user before
+  running them.
+- Diagnose before prescribing: pull account history and verify conversion
+  tracking before concluding an account cannot convert. Match bid strategy to
+  conversion history (cold accounts learn on Maximize Conversions, not tROAS).
+- Read the bundled playbooks before substantive work (list_google_ads_references):
+  campaign builds -> 'campaign-creation-best-practices' then the campaign-type
+  skill + 'asset-creation' + 'store-profiles'; optimization -> 'ppc-advisor';
+  waste/negatives -> 'wasted-spend-remediation' then 'negative-keyword-audit';
+  digests -> 'digest-skill'. Honor every PAUSE FOR ADAM checkpoint in a skill.
+- Some playbook steps reference operator-local files not on this server; note
+  the gap to the user instead of improvising.
+- Do not use em dashes in any user-facing output.
+"""
 
 # HTTP mode (PORT set) gets Google OAuth + role-based authorization; stdio
 # mode (local Claude Code) stays unauthenticated and unfiltered as before.
@@ -128,7 +156,7 @@ if _HTTP_MODE:
 
     _auth = build_auth()
 
-mcp: FastMCP = FastMCP("google-ads", auth=_auth)
+mcp: FastMCP = FastMCP("google-ads", auth=_auth, instructions=_INSTRUCTIONS)
 
 if _HTTP_MODE:
     from mcp_server.authz import RoleAuthzMiddleware
@@ -1852,6 +1880,25 @@ def commit_account_level_negatives(customer_id: str) -> dict:
         "skipped_over_cap": res["skipped_over_cap"],
         "error": res["error"],
     }
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
+def list_google_ads_references() -> str:
+    """List the bundled operating playbooks (campaign creation, asset craft,
+    PPC advisor, waste audits, digests, store profiles). Read the matching one
+    with read_google_ads_reference before that kind of work."""
+    return list_references_impl()
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
+def read_google_ads_reference(name: str) -> str:
+    """Return a bundled playbook by name. Read 'campaign-creation-best-practices'
+    before any campaign build (then the campaign-type skill, 'asset-creation',
+    and 'store-profiles'); 'ppc-advisor' before optimization sessions;
+    'wasted-spend-remediation' then 'negative-keyword-audit' before negatives
+    work; 'digest-skill' when generating a digest. Honor every PAUSE FOR ADAM
+    checkpoint inside a playbook."""
+    return read_reference_impl(name)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,16 @@ COPY mcp_server/ mcp_server/
 COPY control_center/ control_center/
 COPY stores_mapping.json waste_audit_config.json ./
 
+# Bundled reference playbooks, served read-only by the reference tools.
+# Keep this list in sync with mcp_server/references.py REFERENCE_FILES
+# (and the .dockerignore negations).
+COPY CAMPAIGN_CREATION_BEST_PRACTICES.md ASSET_CREATION_SKILL.md \
+     PMAX_BRAND_BREAKOUT_SKILL.md AI_MAX_SKILL.md \
+     PMAX_IMAGE_BEST_PRACTICES.md GENERATED_IMAGE_BEST_PRACTICES.md \
+     NEGATIVE_KEYWORD_AUDIT_SKILL.md WASTED_SPEND_REMEDIATION.md \
+     PPC_ADVISOR.md DIGEST_SKILL.md DIGEST_SOP.md STORE_PROFILES.md \
+     GCHAT_CARD_SCHEMA.md docs/
+
 # /data is the Railway volume mount (audit.db, control_center.db, proposals,
 # DCR client store). Railway mounts it root-owned, so the entrypoint chowns it
 # and drops to the app user — the server process itself never runs as root.
