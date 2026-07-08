@@ -154,6 +154,14 @@ CREATE TABLE IF NOT EXISTS negative_proposals (
     UNIQUE (customer_id, keyword, match_type)
 );
 CREATE INDEX IF NOT EXISTS idx_negprop_status ON negative_proposals(status);
+
+CREATE TABLE IF NOT EXISTS negative_protect_terms (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id  TEXT NOT NULL,
+    term         TEXT NOT NULL,            -- lowercased; substring-matched by the audit engine
+    created_at   TEXT NOT NULL,
+    UNIQUE (customer_id, term)
+);
 """
 
 
@@ -608,6 +616,68 @@ def approve_negative_tranche(conn: sqlite3.Connection, customer_id: str, tranche
         "UPDATE negative_proposals SET status='approved' "
         "WHERE customer_id=? AND tranche=? AND status='open'",
         (str(customer_id), tranche),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def add_protect_term(conn: sqlite3.Connection, customer_id: str, term: str) -> bool:
+    """Record a term the operator wants protected (never re-proposed as a negative).
+
+    Stored lowercased; the audit engine substring-matches protect terms against
+    search terms. Returns True if newly added, False if already present.
+    """
+    t = (term or "").strip().lower()
+    if not t:
+        return False
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO negative_protect_terms (customer_id, term, created_at) "
+        "VALUES (?, ?, ?)",
+        (str(customer_id), t, datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def remove_protect_term(conn: sqlite3.Connection, customer_id: str, term: str) -> None:
+    """Remove a protect term (undo). The next audit will re-propose it if wasteful."""
+    conn.execute(
+        "DELETE FROM negative_protect_terms WHERE customer_id=? AND term=?",
+        (str(customer_id), (term or "").strip().lower()),
+    )
+    conn.commit()
+
+
+def protect_overrides(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    """Return {customer_id: [protect terms]} from operator Protect decisions.
+
+    Merged into each account's protect_terms by control_center/waste.py before the
+    audit runs, so protected terms never resurface. This is the durable, app-local
+    home for protect decisions (the deployed service cannot write the repo config).
+    """
+    out: dict[str, list[str]] = {}
+    for r in conn.execute(
+        "SELECT customer_id, term FROM negative_protect_terms ORDER BY customer_id, term"
+    ):
+        out.setdefault(r["customer_id"], []).append(r["term"])
+    return out
+
+
+def protect_open_matching(conn: sqlite3.Connection, customer_id: str, term: str) -> int:
+    """Mark open proposals whose NEGATIVE KEYWORD contains the protected term as
+    'protected', so protecting one term clears its own siblings immediately.
+
+    Matches on keyword only, not example_term: protecting "dewalt" should retire
+    the negatives that target dewalt (the "dewalt" n-gram, "dewalt framing nailer"),
+    not an "ebay" competitor negative that merely had a dewalt-containing example.
+    Returns rows updated."""
+    t = (term or "").strip().lower()
+    if not t:
+        return 0
+    cur = conn.execute(
+        "UPDATE negative_proposals SET status='protected' "
+        "WHERE customer_id=? AND status='open' AND lower(keyword) LIKE ?",
+        (str(customer_id), f"%{t}%"),
     )
     conn.commit()
     return cur.rowcount

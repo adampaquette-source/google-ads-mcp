@@ -755,9 +755,10 @@ def _negatives_row_html(prop: dict) -> str:
     restores the Approve / Skip buttons so undo returns to an actionable row.
     """
     pid = prop["id"]
-    if prop["status"] in ("approved", "skipped"):
-        label = "Approved" if prop["status"] == "approved" else "Skipped"
-        color = "bg-green-lt" if prop["status"] == "approved" else "bg-secondary-lt"
+    if prop["status"] in ("approved", "skipped", "protected"):
+        label = {"approved": "Approved", "skipped": "Skipped", "protected": "Protected"}[prop["status"]]
+        color = {"approved": "bg-green-lt", "skipped": "bg-secondary-lt",
+                 "protected": "bg-teal-lt"}[prop["status"]]
         inner = (
             f'<span class="badge {color}">{label}</span> '
             f'<button class="btn btn-sm btn-ghost-secondary px-2" '
@@ -772,6 +773,10 @@ def _negatives_row_html(prop: dict) -> str:
             f'<button class="btn btn-sm btn-ghost-secondary px-2" '
             f'hx-post="/negatives/{pid}/skip" hx-target="#neg-actions-{pid}" '
             f'hx-swap="outerHTML">Skip</button>'
+            f'<button class="btn btn-sm btn-outline-teal px-2" '
+            f'title="Keep this term: add it to the account protect list so it never resurfaces" '
+            f'hx-post="/negatives/{pid}/protect" hx-target="#neg-actions-{pid}" '
+            f'hx-swap="outerHTML">Protect</button>'
         )
     return f'<div id="neg-actions-{pid}" class="btn-list flex-nowrap">{inner}</div>'
 
@@ -863,14 +868,32 @@ def negatives(request: Request):
 def set_negative(request: Request):
     prop_id = int(request.path_params["prop_id"])
     action = request.path_params["action"]
-    status = {"approve": "approved", "skip": "skipped", "open": "open"}.get(action)
+    status = {"approve": "approved", "skip": "skipped", "open": "open",
+              "protect": "protected"}.get(action)
     if status is None:
         return HTMLResponse("bad action", status_code=400)
     conn = _conn()
     try:
+        # Undo from Protected must also drop the protect term, or the next audit
+        # would silently re-hide it.
+        if action == "open":
+            prior = conn.execute(
+                "SELECT customer_id, keyword, status FROM negative_proposals WHERE id=?",
+                (prop_id,),
+            ).fetchone()
+            if prior and prior["status"] == "protected":
+                store.remove_protect_term(conn, prior["customer_id"], prior["keyword"])
+
         prop = store.set_negative_status(conn, prop_id, status)
         if not prop:
             return HTMLResponse("not found", status_code=404)
+
+        # Protect: record the term (never re-proposed) and clear its open siblings.
+        if action == "protect":
+            term = (prop.get("keyword") or "").strip()
+            store.add_protect_term(conn, prop["customer_id"], term)
+            store.protect_open_matching(conn, prop["customer_id"], term)
+
         return HTMLResponse(_negatives_row_html(prop))
     finally:
         conn.close()

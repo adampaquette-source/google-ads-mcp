@@ -35,6 +35,7 @@ class WasteAccountConfig(TypedDict):
     protect_regexes: list[str]
     competitor_terms: list[str]
     off_product_terms: list[str]
+    brand_terms: list[str]     # brands the store sells; excluded from n-gram waste
 
 
 # Keys whose default is used only when the account block does not set them.
@@ -56,6 +57,7 @@ _LIST_KEYS = (
     "protect_regexes",
     "competitor_terms",
     "off_product_terms",
+    "brand_terms",
 )
 
 
@@ -91,8 +93,8 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
 def _empty_defaults() -> dict[str, Any]:
     return {
         "breakeven_roas_pct": 300.0,
-        "min_spend": 5.0,
-        "min_clicks": 3,
+        "min_spend": 50.0,
+        "min_clicks": 20,
         "target_cpa": 0.0,
         "zero_conv_cpa_mult": 1.0,
         "flag_foreign_language": False,
@@ -105,6 +107,7 @@ def _empty_defaults() -> dict[str, Any]:
         "protect_regexes": [],
         "competitor_terms": [],
         "off_product_terms": [],
+        "brand_terms": [],
     }
 
 

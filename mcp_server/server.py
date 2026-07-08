@@ -1561,8 +1561,10 @@ def propose_google_ads_search_campaign(
 
     Builds a Search campaign with one or more ad groups, each with its own keywords
     and a Responsive Search Ad. Campaign, ad groups, and ads are all created PAUSED.
-    Cold accounts start on manual_cpc (or maximize_clicks); switch to Smart Bidding in
-    Stage 2 once conversions accumulate. Validate with validate_only before committing.
+    Cold accounts start on manual_cpc (or maximize_clicks); mature accounts with
+    conversion history can use Smart Bidding from the start (maximize_conversion_value
+    with optional target_roas, or maximize_conversions with optional target_cpa_usd),
+    e.g. branded Search breakouts on an established store.
 
     config must be a dict matching SearchCampaignConfig:
       campaign_name          -- string (required)
@@ -1577,11 +1579,18 @@ def propose_google_ads_search_campaign(
           path1, path2 -- optional display-path segments, <= 15 chars each
           cpc_bid_usd  -- optional ad-group max CPC; defaults to default_cpc_usd
       bidding_strategy       -- "manual_cpc" (default) | "maximize_clicks"
+                                | "maximize_conversion_value" | "maximize_conversions"
       default_cpc_usd        -- float, default 0.40 (manual_cpc bid / max_clicks ceiling)
+      target_roas            -- float ratio for maximize_conversion_value (10.0 = 1000%); optional
+      target_cpa_usd         -- float for maximize_conversions; optional
       geo_target_ids         -- list of strings, default ["2840"] (USA)
       language_ids           -- list of strings, default ["1000"] (English)
       enable_search_partners -- bool, default False
       negative_keywords      -- list of strings added as campaign-level BROAD negatives
+      sitelinks              -- list of {text (<=25), final_url, description1 (<=35), description2 (<=35)}
+      callouts               -- list of strings (<=25 chars each)
+      structured_snippets    -- list of {header (approved header e.g. "Types"/"Brands"/"Models"),
+                                values (3-10 strings, <=25 chars each)}
 
     customer_id: 10-digit account ID.
     """

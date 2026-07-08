@@ -28,8 +28,8 @@ category at once.
 | `foreign_language` | Out-of-language query (non-ASCII, or a configured Spanish stem) | BROAD stem if a stem matched, else EXACT |
 | `below_breakeven` | Converted, but ROAS below the account breakeven | EXACT |
 | `non_branded` | Strict brand-gated accounts only: 0 conversions and no brand token | EXACT |
-| `zero_conv_spend` | Spend at or above the account bar (tier-scaled; scales to `k x target_cpa` when set) with 0 conversions | EXACT |
-| `ngram_waste` | Diffuse waste: a word/phrase whose ROLLED-UP spend across many sub-threshold zero-conv queries clears `ngram_min_spend` and spans `ngram_min_terms`+ distinct terms | BROAD (unigram) / PHRASE (bigram) |
+| `zero_conv_spend` | 0 conversions AND (spend >= min_spend **or** clicks >= min_clicks); defaults **$50 or 20 clicks** (tier-scaled; scales to `k x target_cpa` when set) | EXACT |
+| `ngram_waste` | Diffuse waste: a **two-word phrase** with **zero total conversions across ALL its terms**, rolled-up spend over `ngram_min_spend`, spanning `ngram_min_terms`+ distinct terms, with <25% brand/model spend. Brands (`brand_terms`), part/model numbers, and any converting phrase are excluded automatically. Single-word BROAD n-grams are intentionally NOT proposed (too destructive on a broad catalog) | PHRASE (bigram) |
 
 BROAD tranches collapse every matching query onto one root negative (so "miller
 welding helmet", "miller hood"... become one BROAD negative "miller"). EXACT
@@ -69,11 +69,20 @@ http://localhost:8770/negatives .)
 
 ### 3. 🛑 PAUSE FOR ADAM: review and approve
 Open http://localhost:8770/negatives . For each account, review the tranches.
-Approve individual rows, or "Approve all N" for a whole tranche. Skip anything
-that should keep serving. If a legitimate brand or converting term shows up as a
-proposal, do NOT just skip it: add it to that account's `protect_terms` in
-`waste_audit_config.json` so it is never re-proposed, then re-run the audit.
-Nothing is applied until Adam approves and commits. Do not bypass this checkpoint.
+Three per-row actions plus a per-tranche bulk approve:
+- **Approve** (or "Approve all N" for a whole tranche) - queue the negative to commit.
+- **Skip** - dismiss this one proposal for this run (it can resurface next audit).
+- **Protect** - keep this term: it is added to the account's protect list (stored
+  in the control center DB) and the term plus its sibling proposals are cleared
+  immediately and **never resurface** in future audits. Use Protect (not Skip) for
+  a legitimate brand or converting term. Undo on a protected row removes the
+  protect term again.
+
+Protect decisions live in the CC DB and are merged into each account's
+`protect_terms` by `control_center/waste.py` at audit time (the deployed service
+cannot write the repo config). To make a protect term permanent/versioned across
+machines, also add it to `waste_audit_config.json`. Nothing is applied until Adam
+approves and commits. Do not bypass this checkpoint.
 
 ### 4. Commit (apply approved negatives)
 Per account, click "Commit approved to Google Ads" on the Negatives tab (or call

@@ -67,18 +67,21 @@
   </div>
 
   {% for tr in detail.tranche_list %}
-  <div class="border-top">
-    <div class="d-flex align-items-center px-3 py-2" id="{{ detail.customer_id }}-{{ tr.tranche }}">
+  <details class="border-top" id="{{ detail.customer_id }}-{{ tr.tranche }}">
+    <summary class="d-flex align-items-center px-3 py-2" style="cursor:pointer">
       <span class="badge {{ tr.color }} me-2">{{ tr.label }}</span>
-      <span class="text-secondary small">{{ tr.rows | length }} term(s), ${{ '{:,.2f}'.format(tr.spend) }}</span>
-      {% if show != 'approved' %}
-      <form method="post" action="/negatives/approve_tranche" class="m-0 ms-auto">
+      <span class="fw-bold me-2">{{ tr.rows | length }}</span>
+      <span class="text-secondary small">term(s), ${{ '{:,.2f}'.format(tr.spend) }} rolled-up spend</span>
+    </summary>
+    {% if show != 'approved' %}
+    <div class="px-3 py-2">
+      <form method="post" action="/negatives/approve_tranche" class="m-0">
         <input type="hidden" name="customer_id" value="{{ detail.customer_id }}">
         <input type="hidden" name="tranche" value="{{ tr.tranche }}">
-        <button class="btn btn-sm btn-outline-success">Approve all {{ tr.rows | length }}</button>
+        <button class="btn btn-sm btn-outline-success">Approve all {{ tr.rows | length }} in this category</button>
       </form>
-      {% endif %}
     </div>
+    {% endif %}
     <div class="table-responsive">
     <table class="table table-sm table-vcenter card-table">
       <thead>
@@ -102,8 +105,10 @@
         <td><span class="badge {% if p.match_type == 'BROAD' %}bg-orange-lt{% else %}bg-blue-lt{% endif %}">{{ p.match_type }}</span></td>
         <td class="metric-sub">{% if p.matched_count > 1 %}{{ p.matched_count }} queries{% else %}1 query{% endif %}</td>
         <td class="metric-sub">
-          ${{ '{:,.2f}'.format(p.l_spend) }} | {{ p.l_clicks }} clk
-          {% if p.l_conversions and p.l_conversions > 0 %} | {{ p.l_conversions }} conv, ROAS {{ p.l_roas_pct }}%{% endif %}
+          ${{ '{:,.2f}'.format(p.l_spend) }} &middot; {{ p.l_clicks }} clk &middot;
+          <span class="{% if p.l_conversions and p.l_conversions > 0 %}text-green{% else %}text-secondary{% endif %}">{{ '{:g}'.format(p.l_conversions) }} conv</span>
+          &middot; ${{ '{:,.2f}'.format(p.l_conv_value) }}
+          {% if p.l_conversions and p.l_conversions > 0 %} &middot; ROAS {{ p.l_roas_pct }}%{% endif %}
         </td>
         <td>
           {% if p.status == 'approved' %}
@@ -118,6 +123,9 @@
                     hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">Approve</button>
             <button class="btn btn-sm btn-ghost-secondary px-2" hx-post="/negatives/{{ p.id }}/skip"
                     hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">Skip</button>
+            <button class="btn btn-sm btn-outline-teal px-2" hx-post="/negatives/{{ p.id }}/protect"
+                    title="Keep this term: add it to the account protect list so it never resurfaces"
+                    hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">Protect</button>
           </div>
           {% endif %}
         </td>
@@ -126,7 +134,7 @@
       </tbody>
     </table>
     </div>
-  </div>
+  </details>
   {% endfor %}
 
   {% if detail.approved_count %}

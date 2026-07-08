@@ -170,11 +170,17 @@ Built 2026-07-07 (gap 1-3 remediation):
   `commit_account_level_negatives` blankets Search + Shopping + PMax in one 1,000-cap object. Note:
   per-PMax-term *cost* is still not API-exposed (§6), so PMax proposals are seeded from the
   Search/Shopping waste vocabulary + n-grams, not PMax spend.
-- **N-gram aggregation** - `flag_ngram` (default on) rolls diffuse sub-threshold zero-conv terms into
-  unigram (BROAD) / bigram (PHRASE) `ngram_waste` proposals above `ngram_min_spend` spanning
-  `ngram_min_terms`+ distinct terms; a qualifying unigram suppresses its bigrams.
-- **Economics-scaled threshold** - `target_cpa` + `zero_conv_cpa_mult` scale the zero-conv bar to
-  `k x target CPA` when configured; otherwise the flat `min_spend` floor.
+- **N-gram aggregation** - `flag_ngram` (default on) aggregates word-pairs over ALL of an account's
+  terms and proposes only **two-word PHRASE** patterns with **zero total conversions** (so brands and
+  real demand self-exclude), above `ngram_min_spend`, spanning `ngram_min_terms`+ distinct terms, and
+  <25% brand/model spend. Part/model numbers and configured `brand_terms` are excluded. Single-word
+  BROAD n-grams are intentionally not proposed (a lone product noun over-blocks on a broad catalog); a
+  unigram concentration filter is the parked fallback. Rows carry real conv/value.
+- **Economics-scaled threshold** - default zero-conv bar is **$50 spend or 20 clicks**; `target_cpa` +
+  `zero_conv_cpa_mult` scale it to `k x target CPA` when configured.
+- **Chaff controls** - raised defaults + the zero-total-conv n-gram rule cut a first all-accounts pass
+  from ~5,900 proposals to ~600. Negatives tab tranches are collapsible; each row shows conv + value;
+  a per-row **Protect** action adds the term to the account protect list so it never resurfaces.
 
 Known gaps still open (prioritized):
 1. **Brand tranches use negatives, not brand exclusions.** `competitor_brand` (and brand-language) are

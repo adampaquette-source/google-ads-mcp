@@ -43,6 +43,11 @@ from ads_mcp.reporting.waste_config import WasteAccountConfig, config_for, load_
 # term is proposed, so low-priority accounts do not generate long-tail noise.
 _TIER23_SPEND_MULT: float = 3.0
 
+# An n-gram whose brand/model-qualified spend is at least this share of its total
+# spend is product demand, not diffuse junk, so it is not proposed. Blocking
+# "pipe threader" would kill "ridgid 535 pipe threader" the store sells.
+_NGRAM_MAX_BRANDISH_RATIO: float = 0.25
+
 # Human-readable tranche order for display grouping.
 TRANCHE_ORDER: tuple[str, ...] = (
     "competitor_brand",
@@ -156,12 +161,17 @@ def classify_term(
     cfg: WasteAccountConfig,
     protect_res: list[re.Pattern],
     effective_min_spend: float,
+    brand_needles: Optional[list[str]] = None,
 ) -> Optional[tuple[str, str, str]]:
     """Classify one search-term row.
 
     Returns (tranche, negative_keyword, match_type) or None if not wasteful.
     The negative_keyword is the ROOT for BROAD tranches (so one negative blocks
     a whole theme) and the full search term for EXACT tranches.
+
+    brand_needles: lowercased brand tokens the store sells. Except on strict
+    brand-gated accounts, a query that names one of them or carries a model
+    number is kept (not proposed as generic zero-conversion waste).
 
     row keys: search_term, status, clicks, cost, conversions, conversions_value.
     """
@@ -208,6 +218,13 @@ def classify_term(
         if clicks >= 1 or cost > 0:
             return ("non_branded", term, "EXACT")
 
+    # 4b. Keep brand/model-qualified product queries (e.g. "ridgid 535 pipe
+    # threader"): a store sells brands by model number, so do not propose them as
+    # generic zero-conversion waste. Strict brand-gated accounts opt out (they
+    # want everything non-brand blocked; their own brands are in protect_terms).
+    if not cfg["block_non_branded"] and _is_brandish(term_lc, brand_needles or []):
+        return None
+
     # 5. Core signal: real spend, zero conversions.
     if conversions == 0 and (cost >= effective_min_spend or clicks >= int(cfg["min_clicks"])):
         return ("zero_conv_spend", term, "EXACT")
@@ -220,82 +237,119 @@ def _tokens(term_lc: str) -> list[str]:
     return [t for t in _WORD_RE.findall(term_lc) if len(t) >= 2 and t not in _STOPWORDS]
 
 
+def _has_digit(s: str) -> bool:
+    return any(ch.isdigit() for ch in s)
+
+
+def _has_mpn_token(term_lc: str) -> bool:
+    """True if the term contains a model/part-number-looking token.
+
+    A token of length >= 3 that contains a digit (e.g. "535", "grl2000", "2x20v",
+    "m18") reads as a manufacturer part number. Standalone 1-2 char digits are
+    ignored (too noisy). Used to keep brand/model-qualified product queries out
+    of the negatives, since blocking their category words would harm real demand.
+    """
+    for t in _WORD_RE.findall(term_lc):
+        if len(t) >= 3 and any(ch.isdigit() for ch in t):
+            return True
+    return False
+
+
+def _is_brandish(term_lc: str, brand_needles: list[str]) -> bool:
+    """True if the term names a brand the store sells or carries a model number."""
+    if brand_needles and _matches_any_term(term_lc, brand_needles) is not None:
+        return True
+    return _has_mpn_token(term_lc)
+
+
 def _ngram_records(
-    residuals: list[dict[str, Any]],
+    terms: list[dict[str, Any]],
     cfg: WasteAccountConfig,
     protect_res: list[re.Pattern],
     eff_min_spend: float,
+    brand_needles: Optional[list[str]] = None,
 ) -> list[dict[str, Any]]:
-    """Aggregate diffuse waste across sub-threshold zero-conversion terms.
+    """Aggregate diffuse waste by word across ALL of an account's terms.
 
-    Each residual is a term that individually fell below the zero-conversion
-    bar. We tokenize into unigrams + bigrams, sum cost/clicks per gram, and
-    surface grams whose ROLLED-UP spend clears the n-gram floor and that span
-    at least ngram_min_terms distinct terms. A unigram becomes a BROAD negative
-    (theme kill switch); a bigram becomes a PHRASE. Bigrams whose words are
-    already covered by a qualifying unigram are suppressed to avoid redundancy.
+    For every word (unigram) and word-pair (bigram) we sum spend/clicks AND
+    conversions/value over EVERY term that contains it, not just the cheap ones.
+    A word is proposed as waste only if, across all its terms, it has ZERO
+    conversions and its rolled-up spend clears the floor over >= ngram_min_terms
+    distinct terms. That single rule makes brands and real demand self-exclude
+    (they convert somewhere), which is why "tool" or "milwaukee" never surface.
 
-    Returns agg-style records (same shape the caller emits), tranche ngram_waste.
+    Also excluded: part / model numbers (any digit), configured brand terms,
+    the account competitor/off lists, protect terms, and stopwords. Only two-word
+    PHRASE patterns are proposed - single-word BROAD n-grams are too destructive
+    on a broad catalog (a lone product noun blocks thousands of good queries).
+
+    Returns agg-style records (tranche ngram_waste) carrying real conv/value so
+    the reviewer can see the zero-conversion basis.
     """
-    if not residuals:
+    if not terms:
         return []
     floor = float(cfg["ngram_min_spend"]) or (2.0 * eff_min_spend)
     min_terms = max(1, int(cfg["ngram_min_terms"]))
-    comp_off = [t.lower() for t in (cfg["competitor_terms"] + cfg["off_product_terms"])]
+    excl = [t.lower() for t in (cfg["competitor_terms"] + cfg["off_product_terms"] + cfg["brand_terms"])]
+    brand_needles = brand_needles or []
 
-    uni: dict[str, dict[str, Any]] = {}
     bi: dict[str, dict[str, Any]] = {}
 
-    def _acc(store: dict[str, dict[str, Any]], gram: str, term: str, cost: float, clicks: int) -> None:
+    def _acc(store: dict[str, dict[str, Any]], gram: str, term: str,
+             cost: float, clicks: int, conv: float, val: float, brandish: bool) -> None:
         rec = store.get(gram)
         if rec is None:
-            rec = {"gram": gram, "spend": 0.0, "clicks": 0, "terms": set(),
-                   "example_term": term, "top_spend": -1.0}
+            rec = {"gram": gram, "spend": 0.0, "clicks": 0, "conv": 0.0, "val": 0.0,
+                   "terms": 0, "brandish_spend": 0.0, "example_term": term, "top_spend": -1.0}
             store[gram] = rec
         rec["spend"] += cost
         rec["clicks"] += clicks
-        rec["terms"].add(term)
-        if cost > rec["top_spend"]:
+        rec["conv"] += conv
+        rec["val"] += val
+        rec["terms"] += 1            # one increment per term (grams deduped per term)
+        if brandish:
+            rec["brandish_spend"] += cost
+        # Representative example = highest-spend NON-brandish term, so the shown
+        # query illustrates the junk being blocked, not a product query we keep.
+        if not brandish and cost > rec["top_spend"]:
             rec["top_spend"] = cost
             rec["example_term"] = term
 
-    for r in residuals:
+    for r in terms:
         term = str(r["search_term"])
         term_lc = term.lower()
         cost = float(r.get("cost") or 0.0)
         clicks = int(r.get("clicks") or 0)
+        conv = float(r.get("conversions") or 0.0)
+        val = float(r.get("conversions_value") or 0.0)
+        brandish = _is_brandish(term_lc, brand_needles)
         toks = _tokens(term_lc)
-        for g in set(toks):
-            _acc(uni, g, term, cost, clicks)
+        # Bigrams only. Single-word BROAD n-grams are too destructive on a broad
+        # catalog (a lone product noun like "rod"/"tool" blocks thousands of good
+        # queries), so we only propose two-word PHRASE patterns.
         for g in {f"{toks[i]} {toks[i+1]}" for i in range(len(toks) - 1)}:
-            _acc(bi, g, term, cost, clicks)
+            _acc(bi, g, term, cost, clicks, conv, val, brandish)
 
     def _blocked(gram: str) -> bool:
-        # Skip grams already covered elsewhere, protected, or too risky to broad-block.
         if _has_brand_token(gram, cfg["protect_terms"], protect_res):
             return True
-        if _matches_any_term(gram, comp_off) is not None:
-            return True
-        return False
+        return _matches_any_term(gram, excl) is not None
+
+    def _qualifies(rec: dict[str, Any]) -> bool:
+        # Converts somewhere -> keep. Below floor / too few terms -> not diffuse.
+        # Mostly brand/model traffic -> product demand, keep.
+        if rec["conv"] != 0.0 or rec["spend"] < floor or rec["terms"] < min_terms:
+            return False
+        if rec["spend"] > 0 and rec["brandish_spend"] / rec["spend"] >= _NGRAM_MAX_BRANDISH_RATIO:
+            return False
+        return True
 
     out: list[dict[str, Any]] = []
-    qualified_unigrams: set[str] = set()
-    for gram, rec in sorted(uni.items(), key=lambda kv: -kv[1]["spend"]):
-        if gram.isdigit():          # a bare number is too broad to negative BROAD
-            continue
-        if _blocked(gram):
-            continue
-        if rec["spend"] >= floor and len(rec["terms"]) >= min_terms:
-            qualified_unigrams.add(gram)
-            out.append(_ngram_out(rec, gram, "BROAD"))
-
     for gram, rec in sorted(bi.items(), key=lambda kv: -kv[1]["spend"]):
         w1, w2 = gram.split(" ", 1)
-        if w1 in qualified_unigrams or w2 in qualified_unigrams:
-            continue                # the unigram broad already covers this bigram
-        if _blocked(gram):
+        if _has_digit(w1) or _has_digit(w2) or _blocked(gram):
             continue
-        if rec["spend"] >= floor and len(rec["terms"]) >= min_terms:
+        if _qualifies(rec):
             out.append(_ngram_out(rec, gram, "PHRASE"))
     return out
 
@@ -303,9 +357,9 @@ def _ngram_records(
 def _ngram_out(rec: dict[str, Any], gram: str, match_type: str) -> dict[str, Any]:
     return {
         "tranche": "ngram_waste", "keyword": gram, "match_type": match_type,
-        "example_term": rec["example_term"], "matched_count": len(rec["terms"]),
+        "example_term": rec["example_term"], "matched_count": rec["terms"],
         "spend": rec["spend"], "clicks": rec["clicks"],
-        "conversions": 0.0, "conv_value": 0.0,
+        "conversions": rec["conv"], "conv_value": rec["val"],
     }
 
 
@@ -313,9 +367,10 @@ def _rationale(tranche: str, matched: int, cost: float, clicks: int, conversions
                roas_pct: float, breakeven: float) -> str:
     covers = f" (covers {matched} queries)" if matched > 1 else ""
     if tranche == "ngram_waste":
-        return (f"Diffuse waste: the word pattern appears across {matched} sub-threshold "
-                f"queries totaling ${cost:.2f} spend, {clicks} clicks, 0 conversions. "
-                f"Review the broad/phrase block for collateral damage before approving.")
+        return (f"Diffuse waste: this word appears across {matched} queries totaling "
+                f"${cost:.2f} spend, {clicks} clicks, and ZERO conversions across all of "
+                f"them. Brands and converting words are excluded automatically. Review the "
+                f"broad/phrase block for collateral damage before approving.")
     if tranche == "competitor_brand":
         return f"Competitor / retailer brand{covers}. {clicks} clicks, ${cost:.2f} spend."
     if tranche == "off_product":
@@ -380,6 +435,7 @@ def build_waste_proposals(
         if target_cpa > 0:
             base_min = max(base_min, float(cfg["zero_conv_cpa_mult"]) * target_cpa)
         eff_min_spend = base_min * (1.0 if tier == 1 else _TIER23_SPEND_MULT)
+        brand_needles = [b.lower() for b in cfg["brand_terms"]]
 
         try:
             rows = get_search_terms(client, cid, date_range, campaign_id)
@@ -393,22 +449,22 @@ def build_waste_proposals(
         # Aggregate matched search terms onto their negative keyword. BROAD roots
         # collapse many queries into one negative; EXACT keeps one row per term.
         agg: dict[tuple[str, str], dict[str, Any]] = {}
-        residuals: list[dict[str, Any]] = []
+        ngram_terms: list[dict[str, Any]] = []
         for row in rows:
             term_lc = str(row["search_term"]).lower().strip()
             if term_lc and _has_brand_token(term_lc, cfg["protect_terms"], protect_res):
                 protected_count += 1
                 continue
 
-            result = classify_term(dict(row), cfg, protect_res, eff_min_spend)
+            # Every non-protected, not-already-excluded term feeds the n-gram
+            # rollup so each word's TOTAL conversions (not just its cheap terms)
+            # decide whether it is waste. Brands/converters self-exclude.
+            if (cfg["flag_ngram"] and term_lc
+                    and row.get("status") not in _ALREADY_EXCLUDED):
+                ngram_terms.append(dict(row))
+
+            result = classify_term(dict(row), cfg, protect_res, eff_min_spend, brand_needles)
             if result is None:
-                # Sub-threshold zero-conversion terms feed the n-gram rollup so
-                # diffuse waste (no single term over the bar) is still caught.
-                if (cfg["flag_ngram"] and term_lc
-                        and row.get("status") not in _ALREADY_EXCLUDED
-                        and float(row.get("conversions") or 0.0) == 0.0
-                        and (float(row.get("cost") or 0.0) > 0 or int(row.get("clicks") or 0) > 0)):
-                    residuals.append(dict(row))
                 continue
             tranche, keyword, match_type = result
 
@@ -434,7 +490,9 @@ def build_waste_proposals(
 
         emit_records = list(agg.values())
         if cfg["flag_ngram"]:
-            emit_records.extend(_ngram_records(residuals, cfg, protect_res, eff_min_spend))
+            emit_records.extend(
+                _ngram_records(ngram_terms, cfg, protect_res, eff_min_spend, brand_needles)
+            )
 
         for rec in emit_records:
             spend = round(rec["spend"], 2)
