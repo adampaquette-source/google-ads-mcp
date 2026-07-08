@@ -13,6 +13,7 @@ Maintains a single living spreadsheet with tabs:
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -86,9 +87,17 @@ _TROAS_LOG_HEADERS = [
 # ---------------------------------------------------------------------------
 
 def _service(credentials_path: str):
-    creds = service_account.Credentials.from_service_account_file(
-        credentials_path, scopes=_SCOPES,
-    )
+    # Hosted mode: the key JSON is pasted into a platform secret variable —
+    # prefer it over a key file so no credential file enters the image.
+    inline = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON")
+    if inline:
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(inline), scopes=_SCOPES,
+        )
+    else:
+        creds = service_account.Credentials.from_service_account_file(
+            credentials_path, scopes=_SCOPES,
+        )
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
@@ -441,7 +450,7 @@ def write_digest(digest_data: DigestData, spreadsheet_id: str) -> str:
     Returns the Dashboard tab URL.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -773,7 +782,7 @@ def write_mer_report(mer_data: MerReportData, spreadsheet_id: str) -> str:
       Row 3+: Per-store rows sorted by Ads Spend descending
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1164,7 +1173,7 @@ def write_troas_proposals(
     Returns the tROAS Proposals tab URL.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1221,7 +1230,7 @@ def read_troas_decisions(spreadsheet_id: str) -> list[dict]:
     Returns an empty list if the tab does not exist or has no approved rows.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1259,7 +1268,7 @@ def has_pending_troas_decisions(spreadsheet_id: str) -> bool:
     Returns False if the tab does not exist, is empty, or all rows are decided.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         return False
 
     svc = _service(credentials_path)
@@ -1294,7 +1303,7 @@ def append_troas_log(log_rows: list[dict], spreadsheet_id: str) -> None:
     ad_group_id / ad_group_name may be absent for campaign-level entries.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1560,7 +1569,7 @@ def write_budget_proposals(
     Returns the Budget Proposals tab URL.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1609,7 +1618,7 @@ def read_budget_decisions(spreadsheet_id: str) -> list[dict]:
     Returns an empty list if the tab does not exist, is empty, or has no filled rows.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1671,7 +1680,7 @@ def append_budget_log(log_rows: list[dict], spreadsheet_id: str) -> None:
     Appends one row per change on subsequent calls.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1709,7 +1718,7 @@ def read_troas_log_recent(spreadsheet_id: str, days: int = 3) -> list[dict]:
     from datetime import datetime, timedelta, timezone
 
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         return []
 
     svc = _service(credentials_path)
@@ -1787,7 +1796,7 @@ def write_dfw_lookup_table(
         raise ValueError("rows is empty; nothing to write")
 
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
@@ -1815,7 +1824,7 @@ def read_dfw_lookup_table(spreadsheet_id: str, tab: str = "Sheet1") -> list[dict
     Returns an empty list if the tab is missing or has no data rows.
     """
     credentials_path = os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH", "").strip()
-    if not credentials_path:
+    if not credentials_path and not os.environ.get("GOOGLE_ADS_SERVICE_ACCOUNT_JSON"):
         raise EnvironmentError("GOOGLE_ADS_SERVICE_ACCOUNT_JSON_PATH is not set.")
 
     svc = _service(credentials_path)
