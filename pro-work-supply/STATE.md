@@ -26,7 +26,7 @@ The Stage 1 learning plan in `STAGE1_PROPOSAL.md`, with the 2026-06-17 decisions
 ## Next action
 1. **Watch the effect (3-5 days):** with 233 negatives live, confirm CPC/waste drops and whether conversions concentrate on hearing protection. Search IS was only 16% -- focused spend should lift IS on the terms that matter.
 2. **Strategic (propose to Adam):** the data argues for **concentrating the roster/budget on the converter**. Options: (a) tighten the DFW `pws_stage1_3m` roster toward hearing protection + proven/branded winners and trim the 0-conv long tail; (b) once hearing has ~15-20 conv, split it into its own campaign/higher bid. Only hearing has earned spend so far.
-3. **Build a negative-keyword propose/commit MCP tool** (still a gap; this pass was a one-off mutate script). The D23 weekly ops needs it.
+3. **DONE (2026-07-07):** negative-keyword propose/commit is now a real system, not a one-off script. Engine `ads_mcp/reporting/waste_audit.py` + per-account config `waste_audit_config.json` (PWS seeded from this pass, `block_non_branded: true`, breakeven 500%) + control center Negatives tab (grouped by tranche) + shared-list commit `ads_mcp/proposals/negatives.py`. MCP tools `run_waste_audit` / `commit_negative_keywords`. Monthly routine `google-ads-monthly-negatives`. The codified rule reproduces this 233-negative pass exactly (186 EXACT + 47 BROAD, all 3M/hearing protected). See `NEGATIVE_KEYWORD_AUDIT_SKILL.md`.
 4. **Conversion-action tidy (optional):** duplicate secondary purchase actions exist; harmless, clean in Goals.
 5. **Stage 2 unlock:** when conversions clear NOT_ENOUGH_CONVERSIONS, switch to Maximize Conversion Value, then tROAS toward 800%.
 

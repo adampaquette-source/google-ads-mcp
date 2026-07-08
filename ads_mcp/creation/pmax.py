@@ -65,7 +65,8 @@ class AssetGroupConfig(TypedDict, total=False):
     final_url: str
     headlines: list[str]                # 3-15 entries, max 30 chars each
     long_headlines: list[str]           # 1-5 entries, max 90 chars each
-    descriptions: list[str]            # 2-5 entries, max 90 chars; 1 must be <=60 chars
+    descriptions: list[str]            # 2-5 entries, max 90 chars each (all slots are 90 since Apr 2025).
+                                       # We still require 1 <=60 chars as a best-practice convention for compact placements.
     # Images: either the singular *_resource fields (one each) or the plural
     # *_resources lists (many each). At least one landscape and one square required.
     landscape_image_resource: str       # pre-uploaded 1.91:1 image asset resource name
