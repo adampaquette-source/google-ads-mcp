@@ -12,6 +12,8 @@ Each campaign type has a dedicated skill file with its own parameters, steps, an
 
 | When the task is... | Invoke skill |
 |---|---|
+| Writing or editing any ad assets (headlines, descriptions, search themes, images, extensions) for any campaign type | `ASSET_CREATION_SKILL.md` (cross-cutting; read alongside the campaign-type skill) |
+| Enabling or configuring AI Max on a Search campaign (a feature suite on Search, not a new campaign type) | `AI_MAX_SKILL.md` |
 | Building a PMax brand breakout (one asset group per brand, brand-restricted listing groups) | `PMAX_BRAND_BREAKOUT_SKILL.md` |
 | Launching a PMax campaign for a product category (no brand restriction) | `PMAX_CATEGORY_LAUNCH_SKILL.md` *(TBD -- create when first needed)* |
 | Building branded trademark search | `SEARCH_TRADEMARK_SKILL.md` *(TBD)* |

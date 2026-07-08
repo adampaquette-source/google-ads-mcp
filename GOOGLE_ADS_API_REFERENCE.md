@@ -480,6 +480,19 @@ See `ads_mcp/creation/listing_groups.py` for the implementation: `build_brand_su
 | `RESOURCE_NOT_FOUND` on image resource | Wrong resource name for pre-uploaded asset | Re-run `list_google_ads_image_assets()` to get current names |
 | `FINAL_URL_SHOPPING_MERCHANT_HOME_PAGE_URL_DOMAINS_DIFFER` | Asset group final URL domain doesn't match Merchant Center | Use the same domain as the Merchant Center website |
 
+### Brand breakout listing tree + PMax creation constraints (learned 2026-07-06, account 1864748540)
+
+Verified via `validate_only` then a live commit (campaign `24012160720`). Use `validate_only` (`MutateGoogleAdsRequest.validate_only=True`) before any real PMax commit.
+
+- **Merchant Center link is REQUIRED for a SHOPPING listing source.** Set `campaign.shopping_setting.merchant_id` (+ `.feed_label`, `.enable_local`) on the campaign create. Without it, every listing-group filter with `listing_source = SHOPPING` fails `LISTING_SOURCE_NOT_ALLOWED` ("not allowed in the context"). ToolUp = merchant_id `1153808`, feed_label `US`.
+- **`listing_source = SHOPPING` on every node** (root + all children), not just the root. Omitting it -> `REQUIRED`.
+- **Custom-label index enum differs by surface.** PMax asset-group listing filters use `ListingGroupFilterCustomAttributeIndexEnum` (INDEX0=2 .. INDEX4=6). This is NOT `ProductCustomAttributeIndexEnum` (used by Shopping ad_group_criteria, where INDEX0=7). Wrong enum -> INVALID_ENUM_VALUE.
+- **Listing-filter resource names are compound:** `customers/{cid}/assetGroupListingGroupFilters/{assetGroupTempId}~{filterTempId}`. A single temp id (no `~{assetGroup}`) -> `BAD_RESOURCE_ID`. Mirrors the Shopping ad_group_criteria `~` rule (§12).
+- **`campaign.contains_eu_political_advertising` REQUIRED** on PMax create too: `EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING`.
+- **Brand breakout tree** (ToolUp convention, matches Ridgid/Greenlee/Milwaukee/Dewalt) is a 4-level subdivision, each SUBDIVISION carrying one empty-value catch-all sibling: root splits custom_label_2 (exclude `is-bundle`) -> custom_label_0 (`in stock` only) -> product_brand (target brand) -> custom_label_1 (include `default`/`low-performers`/`top-ids`, exclude `zombie` + unlabeled). Built by `build_brand_breakout_tree_ops()`; select via asset-group config `listing_filter="brand_breakout"`. Custom labels are populated catalog-wide by DataFeedWatch.
+- **Search theme policy exemption.** Some brand terms trip policy filters (e.g. "ego" -> TOBACCO/vape, `is_exemptible: true`). Add the flagged `AssetGroupSignal` search themes in a follow-up mutate with `asset_group_signal_operation.exempt_policy_violation_keys` = `PolicyViolationKey(policy_name=..., violating_text=<theme>)`.
+- **Asset group images support many per field type**: pass `landscape_image_resources` / `square_image_resources` / `portrait_image_resources` lists (the singular `*_resource` fields still work).
+
 ## 12. Standard Shopping campaign creation
 
 Used for cold-account learning (Stage 1): one Standard Shopping campaign on Maximize Conversions (no ROAS target), gated to a curated roster via a feed `custom_label`. Implemented in `ads_mcp/creation/shopping.py` (propose/get/commit, mirroring PMax). Campaign and ad group are created PAUSED.

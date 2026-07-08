@@ -211,6 +211,10 @@ Digest content is **written by Claude via the Anthropic API**, not hand-template
 | `DIGEST_SOP.md` | Rationale. WHY behind the skill: edge case explanations, tier logic detail, build stack context. | When modifying digest tooling or investigating unexpected output. Update when rationale or edge cases change. |
 | `ads_mcp/reporting/troas_audit.py` | tROAS audit logic. Proposal generation, drift thresholds, step bands, rollback check. | Every session touching tROAS tools. |
 | `ads_mcp/proposals/troas.py` | tROAS apply logic. Google Ads mutate call for target_roas.target_roas. | When modifying the write operation or adding rollback apply. |
+| `ads_mcp/reporting/waste_audit.py` + `waste_config.py` + `waste_audit_config.json` | Wasted-keyword (negative-keyword) audit engine: pull search terms, apply the per-account protect list, classify into tranches (competitor / off-product / foreign / below-breakeven / non-branded / zero-conv / ngram-waste) with n-gram diffuse-waste rollup and economics-scaled (`target_cpa`) thresholds. Config is per customer_id. Propose-only. | Any session touching the negative-keyword audit. Read `NEGATIVE_KEYWORD_AUDIT_SKILL.md` first. |
+| `ads_mcp/proposals/negatives.py` | Negative-keyword apply logic: find-or-create the account's "Waste Audit Negatives" shared set, add approved keywords (deduped), attach to eligible Search/Shopping campaigns. | When modifying the negative-keyword commit/write. |
+| `WASTED_SPEND_REMEDIATION.md` | Problem-space advisor skill for wasted spend: lever selection (negatives vs brand exclusions vs account/campaign/shared-list vs bid/structural), economics-scaled thresholds, n-gram technique, waste taxonomy, per-channel reality (Search/Shopping/PMax/AI Max visibility + negative mechanics + API resources), cautions, cadence, and the current-implementation gap list. Synthesized from repo research + a 2025-2026 web pass. | FIRST, whenever working on search-term waste / negative keywords / brand or PMax query bleed, or tuning the waste-audit tooling. |
+| `NEGATIVE_KEYWORD_AUDIT_SKILL.md` | The repeatable wasted-keyword audit procedure: tranche definitions, protect-list rule, per-account config, propose -> pause -> approve -> commit. Has a `🛑 PAUSE FOR ADAM` checkpoint. | When running or modifying the negative-keyword audit (after `WASTED_SPEND_REMEDIATION.md`). |
 | `ads_mcp/creation/shopping.py` | Standard Shopping campaign creation (propose/get/commit), mirroring `pmax.py`. Maximize Conversions, gated to a feed custom_label, PAUSED, optional `pause_campaign_ids`. Used for cold-account Stage 1 learning. | Any session building or modifying Standard Shopping campaigns. Read `GOOGLE_ADS_API_REFERENCE.md` §12 first. |
 | `GOOGLE_ADS_API_REFERENCE.md` | API reference. GAQL syntax, field names, quota rules, write operation structure. | Any session touching `ads_mcp/` or `mcp_server/`. |
 | `GCHAT_CARD_SCHEMA.md` | Google Chat card schema. Widget types, color token palette, DigestCardData schema, formatting preferences log, and the v2 upgrade plan. | Any session touching `ads_mcp/notify.py`, digest output, or any Chat notification. Update when a formatting preference is discovered or changed. |
@@ -219,6 +223,8 @@ Digest content is **written by Claude via the Anthropic API**, not hand-template
 | `NOTES.md` | Cross-session scratch pad. Created by Claude Code as needed. | If it exists, read at session start. |
 | `SESSION_HANDOFF.md` | Latest precompaction session handoff: live state, what was built, environment gotchas (incl. stale running MCP server), open items, and which canonical files to read next. | If it exists, read at session start (after this file). |
 | `CAMPAIGN_CREATION_BEST_PRACTICES.md` | Canonical, task-agnostic guide for all campaign creation work. Always rules, pre-flight research, asset group composition rules, brand-term search theme rule, free shipping verbiage rule, Shopify MCP for final URLs, brand_name matching, **skill registry**, self-improvement rule. | Any campaign creation task -- read this BEFORE the campaign-type skill. Update when a new evergreen finding emerges (after consulting Adam). |
+| `ASSET_CREATION_SKILL.md` | Cross-cutting asset craft + specs skill for all Google Ads assets (headlines, long headlines, descriptions, search themes, images, audience signals, extensions). Current 2025-2026 specs, per-asset-type rules, the sales-driven exemplar rule (pull Shopify/shopping sales first, feature real best-sellers), policy pitfalls, Ad Strength Excellent checklist. Sits under `CAMPAIGN_CREATION_BEST_PRACTICES.md`, beside the campaign-type skills. | Any session that writes or edits ad assets. Read alongside the campaign-type skill. |
+| `AI_MAX_SKILL.md` | AI Max for Search skill. AI Max is a feature suite toggled onto a Search campaign (not a new campaign type). Covers what it is, components + dependencies, controls and brand safety, honest performance evidence, PMax/DSA/broad-match interaction and auction priority, reporting/blind spots, the API representation (v21+ `campaign.ai_max_setting`), a multi-brand launch playbook, and a self-improvement clause. Inherits from `CAMPAIGN_CREATION_BEST_PRACTICES.md` and `ASSET_CREATION_SKILL.md`. | Any session enabling or configuring AI Max on a Search campaign. Re-verify specs first (fast-moving feature). |
 | `PMAX_BRAND_BREAKOUT_SKILL.md` | PMax brand breakout skill. Parameterized execution: brand analytics, Ahrefs research, copy + settings, image prep, propose, commit. Has explicit `🛑 PAUSE FOR ADAM` checkpoints. Inherits rules from `CAMPAIGN_CREATION_BEST_PRACTICES.md`. | When executing a brand breakout campaign creation task. |
 | `PMAX_IMAGE_BEST_PRACTICES.md` | Evergreen PMax image creative guide. ~10 images per asset group target. Sourcing priority (existing assets, Shopify MCP, manufacturer, other sellers, general web, then generation). Mandatory direct-image-link rule for any generation prompt. Hero product rule. 3-prompt supplement structure. Per-campaign folder convention and manifest schema. | Any campaign creation task that needs new image assets or image prompts. Update when new creative findings or preferences are discovered. |
 | `campaign_assets/` (directory) | Local working storage for per-campaign artifacts. Structure: `campaign_assets/<campaign_slug>/PROPOSAL.md` + per-asset-group `<slug>/{sourced,generated}/` + `manifest.md`. PROPOSAL.md is the required human-readable working artifact (header table, per-step sections, checkpoint markers, outstanding items, revision log -- see `CAMPAIGN_CREATION_BEST_PRACTICES.md` § Required: PROPOSAL.md). Gitignored except the README. | Created and populated by every campaign creation skill -- PROPOSAL.md is initialized right after the initial data pull and maintained through every revision. Adam reads PROPOSAL.md at every pause checkpoint. |
@@ -235,6 +241,7 @@ Scheduled tasks read `DIGEST_SKILL.md` at runtime. They are thin wrappers:
 - `google-ads-daily-digest` calls DIGEST_SKILL.md in DAILY mode (LAST_7_DAYS)
 - `google-ads-weekly-digest` calls DIGEST_SKILL.md in WEEKLY mode (LAST_30_DAYS)
 - `pws-weekly-ops` (Fridays ~9:23am local) runs the Pro Work Supply Stage 1 weekly review (D23) and writes a dated report to `pro-work-supply/weekly_reviews/`. Self-contained prompt; diagnoses and proposes only, no account/feed changes.
+- `google-ads-monthly-negatives` (1st of month ~9am local) runs the wasted-keyword audit across all accounts via `run_waste_audit`, populating the control center Negatives tab grouped by tranche. Propose-only: Adam reviews, approves, and commits. Reads `NEGATIVE_KEYWORD_AUDIT_SKILL.md`.
 
 To view or edit scheduled task prompts: use the `mcp__scheduled-tasks__list_scheduled_tasks` and `mcp__scheduled-tasks__update_scheduled_task` tools.
 
@@ -270,6 +277,8 @@ When tasked with a change, use this table to find every file that needs updating
 | Google Sheets tab structure or formatting | `ads_mcp/sheets.py` + `DIGEST_SOP.md` (Google Sheets dashboard section) |
 | Display preference (format, units, labels) | `CONSULTATION_RESULTS.md` (Reporting Display Preferences) + whichever files implement the preference |
 | Control center detector threshold (drift %, cap ratio/days, anomaly z, tier rules) | `control_center/detectors.py` (constants at top) + `CONTROL_CENTER_SPEC.md` (detector table). Redeploy via `scripts/install_control_center.sh`. |
+| Wasted-keyword audit rule (tranche logic, thresholds, match-type) or per-account protect/competitor lists | `ads_mcp/reporting/waste_audit.py` (constants + `classify_term`) for logic; `waste_audit_config.json` for per-account protect/competitor/off-product/breakeven. Redeploy control center after either. Update `NEGATIVE_KEYWORD_AUDIT_SKILL.md` if the process changes. |
+| Wasted-keyword commit / shared-list or account-level behavior | `ads_mcp/proposals/negatives.py` (`apply_negatives` shared list attaches to Search+Shopping+PMax; `apply_account_level_negatives` for the 1,000-cap account-level list) + `control_center/app.py` (`/negatives/commit`) + `mcp_server/server.py` (`commit_negative_keywords`, `commit_account_level_negatives`). |
 | Control center pull times or alert channel | `control_center/scheduler.py` (PULL_TIMES) / `control_center/alerts.py` + `CONTROL_CENTER_SPEC.md`. Redeploy after change. |
 | Control center UI or commit flow | `control_center/app.py` + `control_center/templates/` + `CONTROL_CENTER_SPEC.md`. Redeploy after change. |
 | Evergreen / account-agnostic PPC optimization finding (diagnosis, bidding, budget-for-learning, channel choice, feed curation, staging, failure mode) | `PPC_ADVISOR.md` (Retained best practices) -- after consulting Adam per the self-improvement rule in that file |
@@ -319,6 +328,21 @@ Hard rules carried inline so they cannot be missed:
 - **Always run Ahrefs keyword research** before finalizing search themes or copy. For brand-affiliated asset groups, every search theme must contain the brand term.
 - **Verify free shipping verbiage and final URLs against the actual store** (Shopify MCP `get-collection` for collection links, store website header for promo verbiage). Never assume.
 - **If you learn something evergreen during the task, consult Adam about appending it to `CAMPAIGN_CREATION_BEST_PRACTICES.md`** per the self-improvement rule in that file.
+
+## When working on wasted spend (search-term waste, negative keywords, brand/PMax query bleed, or the waste-audit tooling)
+
+**Read `WASTED_SPEND_REMEDIATION.md` first** and adopt its lever model. It is the canonical, evergreen
+knowledge (thresholds, n-gram technique, waste taxonomy, per-channel visibility and negative mechanics,
+API resources, cautions, cadence, and the current-implementation gap list). Then read
+`NEGATIVE_KEYWORD_AUDIT_SKILL.md` for the executable propose -> approve -> commit procedure.
+
+Hard rules carried inline:
+- **Waste is remediated by more than negatives.** Match the lever to the failure mode: negatives (exact
+  /phrase/broad), brand exclusion lists, account-level vs shared-list vs campaign-level, or bid/structural.
+- **A term that converts at or above breakeven is not waste.** Protect it.
+- **Do not over-negative**, especially on Smart Bidding / PMax; propose then human-approve, never auto-apply single-word broad negatives.
+- **`search_term_view` does not cover PMax** - use `campaign_search_term_view` for PMax terms.
+- Evergreen findings go in `WASTED_SPEND_REMEDIATION.md` only after consulting Adam.
 
 ## When working on MCP tools (any session touching ads_mcp/ or mcp_server/)
 

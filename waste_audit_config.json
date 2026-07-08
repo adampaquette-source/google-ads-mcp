@@ -1,0 +1,50 @@
+{
+  "_comment": "Per-account config for the wasted-keyword (negative-keyword) audit. Keyed by Google Ads customer_id. The `_defaults` block applies to every account; a per-account block overrides individual keys (list keys are REPLACED, not merged). See ads_mcp/reporting/waste_config.py for the loader and NEGATIVE_KEYWORD_AUDIT_SKILL.md for the process. All term matching is case-insensitive on the lowercased search term. Not gitignored: contains no secrets, mirrors stores_mapping.json as committed shared config.",
+
+  "_defaults": {
+    "breakeven_roas_pct": 300,
+    "min_spend": 5.0,
+    "min_clicks": 3,
+    "flag_foreign_language": false,
+    "flag_below_breakeven": true,
+    "block_non_branded": false,
+    "protect_terms": [],
+    "protect_regexes": [],
+    "competitor_terms": [
+      "amazon", "ebay", "walmart", "home depot", "homedepot", "lowes", "lowe's",
+      "menards", "harbor freight", "northern tool", "rural king", "grainger",
+      "uline", "zoro", "costco", "temu", "alibaba", "aliexpress"
+    ],
+    "off_product_terms": []
+  },
+
+  "1532947017": {
+    "_account": "Pro Work Supply (proworksupply.com) -- strict brand-gated 3M Shopping strategy (D18). Seeded from the 2026-07-03 manual pass (233 negatives). Breakeven 500% per pro-work-supply/NOTES.md.",
+    "breakeven_roas_pct": 500,
+    "min_spend": 3.0,
+    "min_clicks": 2,
+    "flag_foreign_language": true,
+    "flag_below_breakeven": true,
+    "block_non_branded": true,
+    "protect_terms": [
+      "3m", "peltor", "speedglas", "cubitron", "versaflo", "protecta", "securefit",
+      "scotch-brite", "scotch brite", "aura", "aosafety", "e-a-r", "ear plug", "earplug",
+      "hearing", "earmuff", "ear muff", "optime"
+    ],
+    "protect_regexes": [
+      "\\b(6800|6900|8511|8210|8200|9100|9210|9502|h10b|h7|h9|x5a|100xt)\\b"
+    ],
+    "competitor_terms": [
+      "amazon", "antra", "chicago electric", "dewalt", "ebay", "esab", "forney",
+      "grainger", "gvs", "harbor freight", "hercules", "hobart", "home depot",
+      "honeywell", "howard leight", "iron man", "jackson safety", "klein", "lincoln",
+      "lowe's", "lowes", "makita", "menards", "miller", "milwaukee", "moldex", "msa",
+      "northern tool", "optrel", "pyramex", "radians", "rural king", "ryobi",
+      "sherwin williams", "stihl", "titanium", "uline", "walker's", "walkers",
+      "yeswelder", "zoro"
+    ],
+    "off_product_terms": [
+      "lawn", "mower", "mowing", "asbesto", "asbestos", "hantavirus"
+    ]
+  }
+}

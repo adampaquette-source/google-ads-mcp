@@ -68,6 +68,9 @@ Operating principles:
 
 ### Search term hygiene
 - Audit search terms regularly and mine negatives aggressively. Historical waste (high-spend terms with zero conversions) is the first cut.
+- **Run the monthly wasted-keyword audit across all accounts** (`NEGATIVE_KEYWORD_AUDIT_SKILL.md`, `google-ads-monthly-negatives` routine). Do not eyeball terms one account at a time; the engine classifies waste into tranches so a whole category can be judged at once: competitor/retailer brands and off-product terms (block BROAD at the root), out-of-language queries, converts-below-breakeven, and spend-with-zero-conversions. It is propose-only; approve and commit in the control center.
+- **Protect before you prune.** Every account keeps a protect list (its own brand terms plus proven converting themes) that is never auto-flagged, even at zero conversions. This is account-specific: a reseller like PWS wants only its brand's traffic (block everything non-branded), while a broad catalog store wants to keep generic demand that converts. Encode the account's stance in its `waste_audit_config.json` block rather than deciding term by term.
+- **Negatives belong on a shared list, not scattered per campaign.** One account-level shared negative list keeps the blocks in one reviewable place and covers every eligible campaign at once. PMax is the exception (it does not take shared negative lists).
 
 ### Margin and breakeven
 - **Breakeven ROAS = 1 / gross margin.** A 20% gross margin implies a 500% breakeven ROAS. But that is gross: true net breakeven is higher once shipping, payment processing (~3%), and returns are included. Treat the margin-only number as a floor, not the real target.

@@ -53,6 +53,18 @@ _TABS = {
     "budgets": ("budget_constrained", "budget_excess", "budget_cap"),
 }
 
+# Negative-keyword audit tranches: label + display color, in review order.
+_TRANCHE_META = {
+    "competitor_brand": ("Competitor / retailer brands", "bg-red-lt"),
+    "off_product": ("Off-category terms", "bg-orange-lt"),
+    "foreign_language": ("Out-of-language queries", "bg-purple-lt"),
+    "below_breakeven": ("Converts below breakeven", "bg-yellow-lt"),
+    "non_branded": ("Non-branded queries", "bg-cyan-lt"),
+    "zero_conv_spend": ("Spend, zero conversions", "bg-azure-lt"),
+    "ngram_waste": ("Diffuse waste (word rollup)", "bg-pink-lt"),
+}
+_TRANCHE_DISPLAY_ORDER = list(_TRANCHE_META.keys())
+
 
 def _render(name: str, **ctx) -> HTMLResponse:
     return HTMLResponse(templates.get_template(name).render(**ctx))
@@ -732,6 +744,262 @@ def manual_pull(request: Request):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Negatives tab (wasted-keyword audit)
+# ---------------------------------------------------------------------------
+
+def _negatives_row_html(prop: dict) -> str:
+    """Inline swap fragment for a proposal after approve / skip / undo.
+
+    Decided states (approved, skipped) show a badge + undo. The open state
+    restores the Approve / Skip buttons so undo returns to an actionable row.
+    """
+    pid = prop["id"]
+    if prop["status"] in ("approved", "skipped"):
+        label = "Approved" if prop["status"] == "approved" else "Skipped"
+        color = "bg-green-lt" if prop["status"] == "approved" else "bg-secondary-lt"
+        inner = (
+            f'<span class="badge {color}">{label}</span> '
+            f'<button class="btn btn-sm btn-ghost-secondary px-2" '
+            f'hx-post="/negatives/{pid}/open" hx-target="#neg-actions-{pid}" '
+            f'hx-swap="outerHTML">undo</button>'
+        )
+    else:
+        inner = (
+            f'<button class="btn btn-sm btn-outline-success px-2" '
+            f'hx-post="/negatives/{pid}/approve" hx-target="#neg-actions-{pid}" '
+            f'hx-swap="outerHTML">Approve</button>'
+            f'<button class="btn btn-sm btn-ghost-secondary px-2" '
+            f'hx-post="/negatives/{pid}/skip" hx-target="#neg-actions-{pid}" '
+            f'hx-swap="outerHTML">Skip</button>'
+        )
+    return f'<div id="neg-actions-{pid}" class="btn-list flex-nowrap">{inner}</div>'
+
+
+def negatives(request: Request):
+    show = request.query_params.get("show", "open")
+    status = "approved" if show == "approved" else "open"
+    selected = (request.query_params.get("account") or "").strip()
+    conn = _conn()
+    try:
+        names = account_names()
+
+        # Lightweight per-account index (counts only, no row payload) so the
+        # landing page stays small even with thousands of proposals.
+        index_rows = conn.execute(
+            "SELECT customer_id, account_name, COUNT(*) AS n, "
+            "ROUND(SUM(l_spend), 2) AS spend FROM negative_proposals "
+            "WHERE status=? GROUP BY customer_id ORDER BY spend DESC",
+            (status,),
+        ).fetchall()
+        approved_by_acct = {
+            r["customer_id"]: r["n"]
+            for r in conn.execute(
+                "SELECT customer_id, COUNT(*) AS n FROM negative_proposals "
+                "WHERE status='approved' GROUP BY customer_id"
+            )
+        }
+        account_index = [
+            {
+                "customer_id": r["customer_id"],
+                "name": r["account_name"] or names.get(r["customer_id"], r["customer_id"]),
+                "count": r["n"],
+                "spend": r["spend"] or 0.0,
+                "approved_count": approved_by_acct.get(r["customer_id"], 0),
+            }
+            for r in index_rows
+        ]
+
+        # Detail: only the selected account's rows are rendered.
+        detail = None
+        if selected:
+            props = [
+                p for p in store.negative_proposals(conn, status=status)
+                if p["customer_id"] == selected
+            ]
+            tranches: dict[str, dict] = {}
+            total_spend = 0.0
+            for p in props:
+                tr = tranches.setdefault(p["tranche"], {
+                    "tranche": p["tranche"],
+                    "label": _TRANCHE_META.get(p["tranche"], (p["tranche"], "bg-secondary-lt"))[0],
+                    "color": _TRANCHE_META.get(p["tranche"], (p["tranche"], "bg-secondary-lt"))[1],
+                    "rows": [],
+                    "spend": 0.0,
+                })
+                tr["rows"].append(p)
+                tr["spend"] += p["l_spend"] or 0.0
+                total_spend += p["l_spend"] or 0.0
+            detail = {
+                "customer_id": selected,
+                "name": names.get(selected, selected),
+                "total": len(props),
+                "total_spend": total_spend,
+                "approved_count": approved_by_acct.get(selected, 0),
+                "tranche_list": [tranches[t] for t in _TRANCHE_DISPLAY_ORDER if t in tranches],
+            }
+
+        last_audit = conn.execute(
+            "SELECT MAX(created_at) AS ts, COUNT(*) AS n FROM negative_proposals"
+        ).fetchone()
+        return _render(
+            "negatives.html",
+            account_index=account_index,
+            detail=detail,
+            selected=selected,
+            show=show,
+            open_count=store.count_open_negatives(conn),
+            approved_count=store.count_approved_negatives(conn),
+            staged_count=conn.execute(
+                "SELECT COUNT(*) FROM staged_changes WHERE status='staged'"
+            ).fetchone()[0],
+            neg_open_count=store.count_open_negatives(conn),
+            last_audit=dict(last_audit) if last_audit and last_audit["ts"] else None,
+        )
+    finally:
+        conn.close()
+
+
+def set_negative(request: Request):
+    prop_id = int(request.path_params["prop_id"])
+    action = request.path_params["action"]
+    status = {"approve": "approved", "skip": "skipped", "open": "open"}.get(action)
+    if status is None:
+        return HTMLResponse("bad action", status_code=400)
+    conn = _conn()
+    try:
+        prop = store.set_negative_status(conn, prop_id, status)
+        if not prop:
+            return HTMLResponse("not found", status_code=404)
+        return HTMLResponse(_negatives_row_html(prop))
+    finally:
+        conn.close()
+
+
+async def approve_tranche(request: Request):
+    form = await request.form()
+    customer_id = str(form.get("customer_id", ""))
+    tranche = str(form.get("tranche", ""))
+    conn = _conn()
+    try:
+        store.approve_negative_tranche(conn, customer_id, tranche)
+        return RedirectResponse(f"/negatives?account={customer_id}#detail", status_code=303)
+    finally:
+        conn.close()
+
+
+async def run_negatives_audit(request: Request):
+    from ads_mcp.client import get_client
+    from control_center.waste import run_waste_audit
+
+    form = await request.form()
+    customer_id = str(form.get("customer_id") or "").strip()
+    date_range = str(form.get("date_range") or "LAST_30_DAYS").strip()
+    customer_ids = [customer_id] if customer_id else None
+
+    conn = _conn()
+    try:
+        run_waste_audit(conn, get_client(), date_range=date_range, customer_ids=customer_ids)
+        return RedirectResponse("/negatives", status_code=303)
+    finally:
+        conn.close()
+
+
+async def commit_negatives(request: Request):
+    """Apply approved negatives to Google Ads via the account's shared list.
+
+    One shared-list mutate batch per account. Audits before and after each
+    account, mirroring the tROAS/budget commit path.
+    """
+    from ads_mcp.client import get_client
+    from ads_mcp.proposals.negatives import DEFAULT_LIST_NAME, apply_negatives
+
+    form = await request.form()
+    only_customer = str(form.get("customer_id") or "").strip()
+
+    conn = _conn()
+    audit = _audit_db()
+    results = []
+    try:
+        client = get_client()
+        names = account_names()
+
+        if only_customer:
+            customer_ids = [only_customer]
+        else:
+            customer_ids = [
+                r["customer_id"] for r in conn.execute(
+                    "SELECT DISTINCT customer_id FROM negative_proposals WHERE status='approved'"
+                )
+            ]
+
+        for cid in customer_ids:
+            approved = store.approved_negatives_for(conn, cid)
+            if not approved:
+                continue
+            keywords = [
+                {"keyword": p["keyword"], "match_type": p["match_type"]} for p in approved
+            ]
+
+            cur = audit.execute(
+                """
+                INSERT INTO control_center_change_log
+                    (ts_before, customer_id, campaign_id, campaign_name, change_type,
+                     old_value, new_value, status)
+                VALUES (?, ?, '', ?, 'negative_keywords', NULL, ?, 'attempting')
+                """,
+                (
+                    datetime.now().isoformat(timespec="seconds"),
+                    cid, DEFAULT_LIST_NAME, float(len(keywords)),
+                ),
+            )
+            audit.commit()
+            audit_id = cur.lastrowid
+
+            res = apply_negatives(client, cid, keywords, list_name=DEFAULT_LIST_NAME)
+
+            # Persist per-proposal outcome.
+            outcome_by_kw = {
+                (r["keyword"].lower(), r["match_type"]): r for r in res["results"]
+            }
+            for p in approved:
+                r = outcome_by_kw.get((p["keyword"].lower(), p["match_type"]))
+                if r and r["status"] in ("added", "duplicate"):
+                    store.mark_negative_committed(conn, p["id"], "committed", json.dumps(r))
+                else:
+                    err = (r or {}).get("error", "") or res["error"] or "not applied"
+                    store.mark_negative_committed(conn, p["id"], "failed", json.dumps({"error": err}))
+
+            top_error = res["error"]
+            ok = not top_error and res["errors"] == 0
+            audit.execute(
+                "UPDATE control_center_change_log SET ts_after=?, status=?, error=? WHERE id=?",
+                (
+                    datetime.now().isoformat(timespec="seconds"),
+                    "applied" if ok else "error",
+                    top_error or (f"{res['errors']} keyword errors" if res["errors"] else ""),
+                    audit_id,
+                ),
+            )
+            audit.commit()
+
+            results.append({
+                "account_name": names.get(cid, cid),
+                "customer_id": cid,
+                "added": res["added"],
+                "duplicates": res["duplicates"],
+                "errors": res["errors"],
+                "shared_set_created": res["shared_set_created"],
+                "attached": len(res["attached_campaign_ids"]),
+                "error": top_error,
+            })
+
+        return _render("negatives_commit.html", results=results)
+    finally:
+        audit.close()
+        conn.close()
+
+
 import contextlib
 
 
@@ -758,6 +1026,11 @@ routes = [
     Route("/commit", commit, methods=["POST"]),
     Route("/history", history),
     Route("/pull", manual_pull, methods=["POST"]),
+    Route("/negatives", negatives),
+    Route("/negatives/run", run_negatives_audit, methods=["POST"]),
+    Route("/negatives/approve_tranche", approve_tranche, methods=["POST"]),
+    Route("/negatives/commit", commit_negatives, methods=["POST"]),
+    Route("/negatives/{prop_id:int}/{action}", set_negative, methods=["POST"]),
     Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
 ]
 
