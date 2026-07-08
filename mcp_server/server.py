@@ -1590,5 +1590,234 @@ def commit_google_ads_search_campaign(proposal_id: str) -> SearchCreationResult:
     return commit_search_campaign(get_client(), proposal_id)
 
 
+# ---------------------------------------------------------------------------
+# Wasted-keyword (negative-keyword) audit tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def run_waste_audit(customer_id: Optional[str] = None, date_range: str = "LAST_30_DAYS") -> dict:
+    """Run the wasted-keyword audit and populate the control center Negatives tab.
+
+    Pulls search terms, applies each account's protect list (brand + converting
+    themes), and classifies wasteful terms into tranches: competitor_brand,
+    off_product, foreign_language, below_breakeven, non_branded, zero_conv_spend.
+    Per-account rules live in waste_audit_config.json. Proposals are written to
+    the control center DB for review at http://localhost:8770/negatives, grouped
+    by tranche. This is propose-only: nothing is written to Google Ads. Committed
+    or skipped proposals from prior runs are preserved (never re-proposed).
+
+    customer_id: one 10-digit account, or None for all ENABLED accounts.
+    date_range:  preset (LAST_30_DAYS, LAST_14_DAYS, LAST_7_DAYS) or {start_date, end_date}.
+
+    Returns: run summary (proposals written, accounts checked, protected count,
+    tranche counts) and the Negatives tab URL.
+    """
+    from control_center import store as cc_store
+    from control_center.waste import run_waste_audit as _run
+
+    customer_ids = [customer_id] if customer_id else None
+    conn = cc_store.connect()
+    try:
+        result = _run(conn, get_client(), date_range=_parse_date_range(date_range),
+                      customer_ids=customer_ids)
+    finally:
+        conn.close()
+
+    tc = result["tranche_counts"]
+    summary = ", ".join(f"{k}: {v}" for k, v in tc.items() if v) or "none"
+    msg = (
+        f"Wasted-keyword audit complete. {result['inserted']} proposals across "
+        f"{result['accounts_checked']} account(s); {result['protected_count']} protected terms kept. "
+        f"By tranche -> {summary}. Review and approve at http://localhost:8770/negatives"
+    )
+    try:
+        from ads_mcp.notify import post_to_google_chat
+        post_to_google_chat(msg)
+    except Exception as exc:
+        result["chat_warning"] = str(exc)
+
+    result["negatives_url"] = "http://localhost:8770/negatives"
+    return result
+
+
+@mcp.tool()
+def commit_negative_keywords(customer_id: str) -> dict:
+    """Apply approved negatives for one account as a shared negative keyword list.
+
+    Reads proposals marked Approved (in the control center Negatives tab) for the
+    account, adds them to the account's "Waste Audit Negatives" shared list
+    (created if missing), and attaches the list to eligible ENABLED Search and
+    Shopping campaigns. Writes an audit record (before and after) to audit.db and
+    marks each committed proposal in the control center DB.
+
+    Approve rows first: run_waste_audit populates them, then approve on the
+    Negatives tab (or bulk-approve a tranche) before calling this.
+
+    customer_id: the 10-digit account whose approved negatives to apply.
+
+    Returns: counts of added / duplicate / errored keywords and campaigns attached.
+    """
+    import json
+    import os
+    import sqlite3
+    from datetime import datetime
+
+    from ads_mcp.proposals.negatives import DEFAULT_LIST_NAME, apply_negatives
+    from control_center import store as cc_store
+
+    conn = cc_store.connect()
+    approved = cc_store.approved_negatives_for(conn, customer_id)
+    if not approved:
+        conn.close()
+        return {"status": "ok", "customer_id": customer_id, "added": 0, "duplicates": 0,
+                "errors": 0, "detail": "No approved proposals for this account."}
+
+    keywords = [{"keyword": p["keyword"], "match_type": p["match_type"]} for p in approved]
+
+    # Audit before.
+    audit_path = os.environ.get("ADS_MCP_AUDIT_LOG_PATH", "./audit.db")
+    audit = sqlite3.connect(audit_path)
+    audit.execute(
+        """
+        CREATE TABLE IF NOT EXISTS negative_keyword_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_before TEXT NOT NULL, ts_after TEXT,
+            customer_id TEXT NOT NULL, list_name TEXT, keyword_count INTEGER,
+            status TEXT NOT NULL, error TEXT
+        )
+        """
+    )
+    cur = audit.execute(
+        "INSERT INTO negative_keyword_log (ts_before, customer_id, list_name, keyword_count, status) "
+        "VALUES (?, ?, ?, ?, 'attempting')",
+        (datetime.now().isoformat(timespec="seconds"), customer_id, DEFAULT_LIST_NAME, len(keywords)),
+    )
+    audit.commit()
+    audit_id = cur.lastrowid
+
+    res = apply_negatives(get_client(), customer_id, keywords, list_name=DEFAULT_LIST_NAME)
+
+    outcome = {(r["keyword"].lower(), r["match_type"]): r for r in res["results"]}
+    for p in approved:
+        r = outcome.get((p["keyword"].lower(), p["match_type"]))
+        if r and r["status"] in ("added", "duplicate"):
+            cc_store.mark_negative_committed(conn, p["id"], "committed", json.dumps(r))
+        else:
+            err = (r or {}).get("error", "") or res["error"] or "not applied"
+            cc_store.mark_negative_committed(conn, p["id"], "failed", json.dumps({"error": err}))
+    conn.close()
+
+    ok = not res["error"] and res["errors"] == 0
+    audit.execute(
+        "UPDATE negative_keyword_log SET ts_after=?, status=?, error=? WHERE id=?",
+        (datetime.now().isoformat(timespec="seconds"), "applied" if ok else "error",
+         res["error"] or (f"{res['errors']} keyword errors" if res["errors"] else ""), audit_id),
+    )
+    audit.commit()
+    audit.close()
+
+    return {
+        "status": "ok" if ok else "partial",
+        "customer_id": customer_id,
+        "shared_set_created": res["shared_set_created"],
+        "added": res["added"],
+        "duplicates": res["duplicates"],
+        "errors": res["errors"],
+        "campaigns_attached": len(res["attached_campaign_ids"]),
+        "error": res["error"],
+    }
+
+
+@mcp.tool()
+def commit_account_level_negatives(customer_id: str) -> dict:
+    """Apply approved negatives for one account to the ACCOUNT-LEVEL negative list.
+
+    Unlike commit_negative_keywords (a per-campaign shared list), this adds the
+    approved keywords to the account-level negative keyword list, which blankets
+    Search + Shopping + Performance Max + App + Smart + Local in one object. Use
+    it for universal junk that should never serve anywhere, including PMax.
+
+    The account-level list is capped at 1,000 keywords, so approved proposals are
+    applied highest-rolled-up-spend first; any beyond the remaining headroom are
+    reported in skipped_over_cap (approve fewer, or use commit_negative_keywords
+    for the long tail, which has far higher caps).
+
+    customer_id: the 10-digit account whose approved negatives to apply.
+    Returns: counts of added / duplicate / errored / skipped keywords and whether
+    the list is linked to the account.
+    """
+    import json
+    import os
+    import sqlite3
+    from datetime import datetime
+
+    from ads_mcp.proposals.negatives import ACCOUNT_LEVEL_LIST_NAME, apply_account_level_negatives
+    from control_center import store as cc_store
+
+    conn = cc_store.connect()
+    approved = cc_store.approved_negatives_for(conn, customer_id)
+    if not approved:
+        conn.close()
+        return {"status": "ok", "customer_id": customer_id, "added": 0, "duplicates": 0,
+                "errors": 0, "skipped_over_cap": 0, "detail": "No approved proposals for this account."}
+
+    # Cap is tight (1,000); prioritize by rolled-up spend.
+    approved = sorted(approved, key=lambda p: -float(p.get("l_spend") or 0.0))
+    keywords = [{"keyword": p["keyword"], "match_type": p["match_type"]} for p in approved]
+
+    audit_path = os.environ.get("ADS_MCP_AUDIT_LOG_PATH", "./audit.db")
+    audit = sqlite3.connect(audit_path)
+    audit.execute(
+        """
+        CREATE TABLE IF NOT EXISTS negative_keyword_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_before TEXT NOT NULL, ts_after TEXT,
+            customer_id TEXT NOT NULL, list_name TEXT, keyword_count INTEGER,
+            status TEXT NOT NULL, error TEXT
+        )
+        """
+    )
+    cur = audit.execute(
+        "INSERT INTO negative_keyword_log (ts_before, customer_id, list_name, keyword_count, status) "
+        "VALUES (?, ?, ?, ?, 'attempting')",
+        (datetime.now().isoformat(timespec="seconds"), customer_id, ACCOUNT_LEVEL_LIST_NAME, len(keywords)),
+    )
+    audit.commit()
+    audit_id = cur.lastrowid
+
+    res = apply_account_level_negatives(get_client(), customer_id, keywords)
+
+    outcome = {(r["keyword"].lower(), r["match_type"]): r for r in res["results"]}
+    for p in approved:
+        r = outcome.get((p["keyword"].lower(), p["match_type"]))
+        if r and r["status"] in ("added", "duplicate"):
+            cc_store.mark_negative_committed(conn, p["id"], "committed", json.dumps(r))
+        elif r:
+            cc_store.mark_negative_committed(conn, p["id"], "failed", json.dumps({"error": r.get("error", "")}))
+        # rows skipped over the cap keep status 'approved' so a later run can apply them
+    conn.close()
+
+    ok = not res["error"] and res["errors"] == 0
+    audit.execute(
+        "UPDATE negative_keyword_log SET ts_after=?, status=?, error=? WHERE id=?",
+        (datetime.now().isoformat(timespec="seconds"), "applied" if ok else "error",
+         res["error"] or (f"{res['errors']} keyword errors" if res["errors"] else ""), audit_id),
+    )
+    audit.commit()
+    audit.close()
+
+    return {
+        "status": "ok" if ok else "partial",
+        "customer_id": customer_id,
+        "shared_set_created": res["shared_set_created"],
+        "linked_to_account": res["linked_to_account"],
+        "added": res["added"],
+        "duplicates": res["duplicates"],
+        "errors": res["errors"],
+        "skipped_over_cap": res["skipped_over_cap"],
+        "error": res["error"],
+    }
+
+
 if __name__ == "__main__":
     mcp.run()

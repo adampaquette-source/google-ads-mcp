@@ -28,6 +28,7 @@ rsync -a \
   "$PROJECT_DIR/pyproject.toml" \
   "$PROJECT_DIR/uv.lock" \
   "$PROJECT_DIR/stores_mapping.json" \
+  "$PROJECT_DIR/waste_audit_config.json" \
   "$APP_DIR/"
 [ -f "$PROJECT_DIR/README.md" ] && rsync -a "$PROJECT_DIR/README.md" "$APP_DIR/" || true
 

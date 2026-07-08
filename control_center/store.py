@@ -125,6 +125,35 @@ CREATE TABLE IF NOT EXISTS pulls (
     resolved_flags   INTEGER NOT NULL DEFAULT 0,
     errors      TEXT                          -- JSON list of error strings
 );
+
+-- Wasted-keyword (negative-keyword) audit proposals, grouped by tranche.
+-- One row per proposed negative (BROAD root or EXACT term). Open rows are
+-- refreshed on each audit run; committed/skipped rows are preserved so a term
+-- is not re-proposed after a decision. See ads_mcp/reporting/waste_audit.py.
+CREATE TABLE IF NOT EXISTS negative_proposals (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id   TEXT NOT NULL,
+    account_name  TEXT,
+    tranche       TEXT NOT NULL,            -- competitor_brand | off_product | foreign_language | below_breakeven | non_branded | zero_conv_spend
+    keyword       TEXT NOT NULL,            -- the negative to add (root for BROAD, full term for EXACT)
+    match_type    TEXT NOT NULL,            -- EXACT | BROAD
+    example_term  TEXT,                      -- representative triggering search term
+    matched_count INTEGER NOT NULL DEFAULT 1,
+    l_spend       REAL NOT NULL DEFAULT 0,
+    l_clicks      INTEGER NOT NULL DEFAULT 0,
+    l_conversions REAL NOT NULL DEFAULT 0,
+    l_conv_value  REAL NOT NULL DEFAULT 0,
+    l_roas_pct    REAL NOT NULL DEFAULT 0,
+    severity      TEXT NOT NULL DEFAULT 'low',
+    rationale     TEXT,
+    status        TEXT NOT NULL DEFAULT 'open',  -- open | approved | skipped | committed | failed
+    audit_run_id  TEXT,
+    created_at    TEXT NOT NULL,
+    committed_at  TEXT,
+    result        TEXT,                      -- JSON: commit response or error
+    UNIQUE (customer_id, keyword, match_type)
+);
+CREATE INDEX IF NOT EXISTS idx_negprop_status ON negative_proposals(status);
 """
 
 
@@ -472,6 +501,136 @@ def backfill(days: int = 180) -> None:
     client = get_client()
     run_data_pull(conn, client, days=days, kind="backfill")
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Negative-keyword audit proposals
+# ---------------------------------------------------------------------------
+
+def refresh_negative_proposals(
+    conn: sqlite3.Connection,
+    proposals: Iterable[dict],
+    audit_run_id: str,
+) -> int:
+    """Refresh open proposals for the audited accounts.
+
+    Deletes existing OPEN rows for every customer_id present in proposals, then
+    inserts the new proposals as open. Committed / skipped / failed rows are
+    preserved (a decided term is never re-proposed). Returns rows inserted.
+    """
+    proposals = list(proposals)
+    now = datetime.now().isoformat(timespec="seconds")
+    audited = {str(p["customer_id"]) for p in proposals}
+
+    for cid in audited:
+        conn.execute(
+            "DELETE FROM negative_proposals WHERE customer_id=? AND status='open'",
+            (cid,),
+        )
+
+    inserted = 0
+    for p in proposals:
+        # Skip if a decided (committed/skipped/failed) row already owns this key.
+        existing = conn.execute(
+            "SELECT status FROM negative_proposals "
+            "WHERE customer_id=? AND keyword=? AND match_type=?",
+            (str(p["customer_id"]), p["keyword"], p["suggested_match_type"]),
+        ).fetchone()
+        if existing is not None and existing["status"] != "open":
+            continue
+        conn.execute(
+            """
+            INSERT INTO negative_proposals
+                (customer_id, account_name, tranche, keyword, match_type, example_term,
+                 matched_count, l_spend, l_clicks, l_conversions, l_conv_value, l_roas_pct,
+                 severity, rationale, status, audit_run_id, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'open', ?, ?)
+            ON CONFLICT(customer_id, keyword, match_type) DO UPDATE SET
+                tranche=excluded.tranche, example_term=excluded.example_term,
+                matched_count=excluded.matched_count, l_spend=excluded.l_spend,
+                l_clicks=excluded.l_clicks, l_conversions=excluded.l_conversions,
+                l_conv_value=excluded.l_conv_value, l_roas_pct=excluded.l_roas_pct,
+                severity=excluded.severity, rationale=excluded.rationale,
+                audit_run_id=excluded.audit_run_id
+            """,
+            (
+                str(p["customer_id"]), p.get("account_name", ""), p["tranche"], p["keyword"],
+                p["suggested_match_type"], p.get("example_term", ""), int(p.get("matched_count", 1)),
+                float(p.get("l_spend", 0.0)), int(p.get("l_clicks", 0)),
+                float(p.get("l_conversions", 0.0)), float(p.get("l_conv_value", 0.0)),
+                float(p.get("l_roas_pct", 0.0)), p.get("severity", "low"),
+                p.get("rationale", ""), audit_run_id, now,
+            ),
+        )
+        inserted += 1
+    conn.commit()
+    return inserted
+
+
+def negative_proposals(conn: sqlite3.Connection, status: str = "open") -> list[dict]:
+    """Return proposals with the given status, ordered for display."""
+    rows = conn.execute(
+        "SELECT * FROM negative_proposals WHERE status=? "
+        "ORDER BY account_name, tranche, l_spend DESC",
+        (status,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_open_negatives(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM negative_proposals WHERE status='open'"
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_approved_negatives(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM negative_proposals WHERE status='approved'"
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def set_negative_status(conn: sqlite3.Connection, prop_id: int, status: str) -> Optional[dict]:
+    conn.execute(
+        "UPDATE negative_proposals SET status=? WHERE id=?", (status, prop_id)
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM negative_proposals WHERE id=?", (prop_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def approve_negative_tranche(conn: sqlite3.Connection, customer_id: str, tranche: str) -> int:
+    """Bulk-approve every open proposal in one account+tranche. Returns count."""
+    cur = conn.execute(
+        "UPDATE negative_proposals SET status='approved' "
+        "WHERE customer_id=? AND tranche=? AND status='open'",
+        (str(customer_id), tranche),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def approved_negatives_for(conn: sqlite3.Connection, customer_id: str) -> list[dict]:
+    """Approved proposals for one account, ready to commit."""
+    rows = conn.execute(
+        "SELECT * FROM negative_proposals WHERE customer_id=? AND status='approved' "
+        "ORDER BY tranche, keyword",
+        (str(customer_id),),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_negative_committed(
+    conn: sqlite3.Connection, prop_id: int, status: str, result: str
+) -> None:
+    conn.execute(
+        "UPDATE negative_proposals SET status=?, result=?, committed_at=? WHERE id=?",
+        (status, result, datetime.now().isoformat(timespec="seconds"), prop_id),
+    )
+    conn.commit()
 
 
 if __name__ == "__main__":

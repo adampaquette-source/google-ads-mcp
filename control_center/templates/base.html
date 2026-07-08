@@ -26,6 +26,11 @@
           {% if staged_count %}<span class="badge bg-green-lt ms-1">{{ staged_count }}</span>{% endif %}
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/negatives">Negatives
+          {% if neg_open_count %}<span class="badge bg-azure-lt ms-1">{{ neg_open_count }}</span>{% endif %}
+        </a>
+      </li>
       <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
     </ul>
     <span class="text-secondary small me-3">{% block headmeta %}{% endblock %}</span>

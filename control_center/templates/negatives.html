@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block headmeta %}
+  {% if last_audit %}last audit {{ last_audit.ts[:16] | replace('T', ' ') }}{% endif %}
+{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center mb-3 gap-2">
+  <ul class="nav nav-tabs flex-grow-1">
+    <li class="nav-item">
+      <a class="nav-link {% if show != 'approved' %}active{% endif %}" href="/negatives?show=open{% if selected %}&account={{ selected }}{% endif %}">
+        Open <span class="badge bg-azure-lt ms-1">{{ open_count }}</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if show == 'approved' %}active{% endif %}" href="/negatives?show=approved{% if selected %}&account={{ selected }}{% endif %}">
+        Approved <span class="badge bg-green-lt ms-1">{{ approved_count }}</span>
+      </a>
+    </li>
+  </ul>
+  <form method="post" action="/negatives/run" class="m-0 d-flex gap-2 align-items-center">
+    <select name="date_range" class="form-select form-select-sm" style="width:auto">
+      <option value="LAST_30_DAYS">Last 30 days</option>
+      <option value="LAST_14_DAYS">Last 14 days</option>
+      <option value="LAST_7_DAYS">Last 7 days</option>
+    </select>
+    <button class="btn btn-sm btn-ghost-secondary" title="Pulls search terms for all accounts and rebuilds proposals; can take a couple of minutes">Run audit (all accounts)</button>
+  </form>
+</div>
+
+{% if not account_index %}
+<div class="card"><div class="card-body text-secondary">
+  {% if show == 'approved' %}Nothing approved yet. Approve proposals on the Open tab, then commit.
+  {% else %}No open proposals. Run the audit to pull search terms and rebuild the list.{% endif %}
+</div></div>
+{% else %}
+
+<div class="card mb-3">
+  <div class="card-header py-2"><h3 class="card-title mb-0">Accounts</h3>
+    <span class="text-secondary small ms-2">pick one to review</span></div>
+  <div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table">
+    <thead><tr><th>Account</th><th>{{ 'Approved' if show == 'approved' else 'Open' }}</th><th>Rolled-up spend</th><th></th><th></th></tr></thead>
+    <tbody>
+    {% for a in account_index %}
+    <tr class="{% if a.customer_id == selected %}table-active{% endif %}">
+      <td><strong>{{ a.name }}</strong> <span class="text-secondary small">{{ a.customer_id }}</span></td>
+      <td>{{ a.count }}</td>
+      <td>${{ '{:,.2f}'.format(a.spend) }}</td>
+      <td>{% if a.approved_count %}<span class="badge bg-green-lt">{{ a.approved_count }} approved</span>{% endif %}</td>
+      <td class="text-end"><a class="btn btn-sm" href="/negatives?show={{ show }}&account={{ a.customer_id }}#detail">Review</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% endif %}
+
+{% if detail %}
+<div class="card mb-3" id="detail">
+  <div class="card-header py-2">
+    <h3 class="card-title mb-0">{{ detail.name }}</h3>
+    <span class="badge bg-secondary-lt ms-3">{{ detail.total }} {{ show }}</span>
+    <span class="text-secondary small ms-2">${{ '{:,.2f}'.format(detail.total_spend) }} rolled-up spend</span>
+    <span class="card-subtitle ms-auto mb-0">{{ detail.customer_id }}</span>
+  </div>
+
+  {% for tr in detail.tranche_list %}
+  <div class="border-top">
+    <div class="d-flex align-items-center px-3 py-2" id="{{ detail.customer_id }}-{{ tr.tranche }}">
+      <span class="badge {{ tr.color }} me-2">{{ tr.label }}</span>
+      <span class="text-secondary small">{{ tr.rows | length }} term(s), ${{ '{:,.2f}'.format(tr.spend) }}</span>
+      {% if show != 'approved' %}
+      <form method="post" action="/negatives/approve_tranche" class="m-0 ms-auto">
+        <input type="hidden" name="customer_id" value="{{ detail.customer_id }}">
+        <input type="hidden" name="tranche" value="{{ tr.tranche }}">
+        <button class="btn btn-sm btn-outline-success">Approve all {{ tr.rows | length }}</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm table-vcenter card-table">
+      <thead>
+        <tr>
+          <th style="width:34%">Negative keyword</th>
+          <th>Match</th>
+          <th>Coverage</th>
+          <th>Spend / conv</th>
+          <th style="width:16%">Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in tr.rows %}
+      <tr>
+        <td>
+          <strong>{{ p.keyword }}</strong>
+          {% if p.example_term and p.example_term != p.keyword %}
+            <div class="text-secondary small">e.g. "{{ p.example_term }}"</div>
+          {% endif %}
+        </td>
+        <td><span class="badge {% if p.match_type == 'BROAD' %}bg-orange-lt{% else %}bg-blue-lt{% endif %}">{{ p.match_type }}</span></td>
+        <td class="metric-sub">{% if p.matched_count > 1 %}{{ p.matched_count }} queries{% else %}1 query{% endif %}</td>
+        <td class="metric-sub">
+          ${{ '{:,.2f}'.format(p.l_spend) }} | {{ p.l_clicks }} clk
+          {% if p.l_conversions and p.l_conversions > 0 %} | {{ p.l_conversions }} conv, ROAS {{ p.l_roas_pct }}%{% endif %}
+        </td>
+        <td>
+          {% if p.status == 'approved' %}
+          <div id="neg-actions-{{ p.id }}" class="btn-list flex-nowrap">
+            <span class="badge bg-green-lt">Approved</span>
+            <button class="btn btn-sm btn-ghost-secondary px-2" hx-post="/negatives/{{ p.id }}/open"
+                    hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">undo</button>
+          </div>
+          {% else %}
+          <div id="neg-actions-{{ p.id }}" class="btn-list flex-nowrap">
+            <button class="btn btn-sm btn-outline-success px-2" hx-post="/negatives/{{ p.id }}/approve"
+                    hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">Approve</button>
+            <button class="btn btn-sm btn-ghost-secondary px-2" hx-post="/negatives/{{ p.id }}/skip"
+                    hx-target="#neg-actions-{{ p.id }}" hx-swap="outerHTML">Skip</button>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if detail.approved_count %}
+  <div class="card-footer py-2 d-flex align-items-center gap-3">
+    <strong>{{ detail.approved_count }} approved for this account.</strong>
+    <form method="post" action="/negatives/commit" class="m-0"
+          onsubmit="return confirm('Add {{ detail.approved_count }} negative(s) to the shared list for {{ detail.name }} and attach it to eligible campaigns?');">
+      <input type="hidden" name="customer_id" value="{{ detail.customer_id }}">
+      <button class="btn btn-primary btn-sm">Commit approved to Google Ads</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

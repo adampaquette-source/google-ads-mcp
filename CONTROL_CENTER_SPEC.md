@@ -136,9 +136,42 @@ step). Two queue tabs: **Performance** (tROAS drift + spend anomaly) and
 
 Each step is independently testable; Adam can start using the read-only queue before any write code exists.
 
+## Negatives tab (wasted-keyword audit, added 2026-07-07)
+
+A third review surface beside the flag queue: proposed negative keywords grouped
+by waste tranche, reviewed and committed from the UI. This is the priority #6
+"negative keyword pass" that was deferred from v1.
+
+- **Producer:** `control_center/waste.py` `run_waste_audit(conn, client, date_range, customer_ids)`
+  calls the shared engine `ads_mcp/reporting/waste_audit.py` `build_waste_proposals`
+  (pull search terms, apply the per-account protect list from `waste_audit_config.json`,
+  classify into tranches) and refreshes the `negative_proposals` table. Propose-only:
+  no Google Ads writes. Committed/skipped rows are preserved so a decided term is
+  never re-proposed.
+- **Tranches:** competitor_brand, off_product, foreign_language (BROAD roots where
+  possible), below_breakeven, non_branded (strict brand-gated accounts), zero_conv_spend.
+  BROAD tranches collapse many queries onto one root negative; EXACT keep one per term.
+- **Data model:** `negative_proposals(id, customer_id, account_name, tranche, keyword,
+  match_type, example_term, matched_count, l_spend, l_clicks, l_conversions,
+  l_conv_value, l_roas_pct, severity, rationale, status[open|approved|skipped|
+  committed|failed], audit_run_id, created_at, committed_at, result)`.
+- **Routes:** `/negatives` (grouped by account then tranche, Open / Approved tabs),
+  `/negatives/run` (rebuild proposals), `/negatives/{id}/{approve|skip|open}` (htmx),
+  `/negatives/approve_tranche` (bulk), `/negatives/commit` (apply approved).
+- **Commit:** `ads_mcp/proposals/negatives.py` `apply_negatives` finds-or-creates the
+  account's "Waste Audit Negatives" shared set (type NEGATIVE_KEYWORDS), adds approved
+  keywords (deduped), and attaches the set to eligible ENABLED Search/Shopping
+  campaigns. Audit-logged before and after, same as tROAS/budget commits.
+- **MCP tools:** `run_waste_audit(customer_id, date_range)` and
+  `commit_negative_keywords(customer_id)` mirror the UI path for automation.
+- **Routine:** the `google-ads-monthly-negatives` scheduled task runs the audit for
+  all accounts monthly and stops (propose-only); Adam approves and commits.
+- **Config deploy:** `waste_audit_config.json` is rsynced by `scripts/install_control_center.sh`
+  so the deployed service can read per-account protect/competitor lists.
+- See `NEGATIVE_KEYWORD_AUDIT_SKILL.md` for the full procedure.
+
 ## Out of scope for v1 (noted for later)
 
-- Negative keyword pass (priority #6) -- different review UX, Phase 3 extension
 - MoM/YoY comparison tool (priority #7) -- natural History-screen extension later
 - AI analysis layer -- deterministic only in v1
 - Phone access -- would require hosting or tunneling; revisit only if the Mac-local constraint chafes

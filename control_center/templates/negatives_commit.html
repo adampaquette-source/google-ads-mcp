@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block headmeta %}Negative commit results{% endblock %}
+{% block content %}
+
+<div class="card mb-3">
+  <div class="card-header py-2"><h3 class="card-title mb-0">Negative-keyword commit results</h3></div>
+  <div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table">
+    <thead><tr><th>Account</th><th>Added</th><th>Already present</th><th>Campaigns attached</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in results %}
+    <tr>
+      <td><strong>{{ r.account_name }}</strong> <span class="text-secondary small">{{ r.customer_id }}</span>
+        {% if r.shared_set_created %}<div class="text-secondary small">created shared list "Waste Audit Negatives"</div>{% endif %}
+      </td>
+      <td>{{ r.added }}</td>
+      <td>{{ r.duplicates }}</td>
+      <td>{{ r.attached }}</td>
+      <td>
+        {% if not r.error and r.errors == 0 %}<span class="badge bg-green-lt">Applied</span>
+        {% else %}<span class="badge bg-red-lt">{{ r.errors }} error(s)</span> <span class="text-danger small">{{ r.error }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if not results %}
+<div class="card"><div class="card-body text-secondary">Nothing approved to commit.</div></div>
+{% endif %}
+
+<a class="btn" href="/negatives">Back to negatives</a>
+
+{% endblock %}
