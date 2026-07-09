@@ -15,6 +15,12 @@ Cold-start note: Search, like Shopping, starts on Manual CPC (or Maximize Clicks
 a zero-history account. Conversion-based Smart Bidding (tCPA/tROAS/Max Conv) is a
 Stage 2 switch once conversions accumulate. Validate with validate_only before any
 real commit.
+
+Mature-account note: on an established store with conversion history, Smart Bidding is
+appropriate from the start. bidding_strategy supports maximize_conversion_value (with
+optional target_roas) and maximize_conversions (with optional target_cpa_usd), e.g.
+branded Search breakouts. Campaign-level assets (sitelinks, callouts, structured
+snippets) are created and linked in the same atomic mutate when provided.
 """
 
 from __future__ import annotations
@@ -66,6 +72,28 @@ class SearchKeyword(TypedDict, total=False):
     match_type: str                     # "PHRASE" (default) | "EXACT" | "BROAD"
 
 
+class Sitelink(TypedDict, total=False):
+    text: str                           # required, link text, <= 25 chars
+    final_url: str                      # required, http(s) landing page
+    description1: str                   # optional, <= 35 chars (pair with description2)
+    description2: str                   # optional, <= 35 chars
+
+
+class StructuredSnippet(TypedDict, total=False):
+    header: str                         # required, one of the Google-approved headers
+    values: list[str]                   # required, 3-10 items, <= 25 chars each
+
+
+class AiMaxSettings(TypedDict, total=False):
+    enable: bool                        # required to activate AI Max; default True when block present
+    bundling_required: bool             # AI Max must stay on to edit text/brand controls (default True)
+    text_customization: bool            # TEXT_ASSET_AUTOMATION opt-in (default True)
+    final_url_expansion: bool           # FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION opt-in (default False).
+                                        #   Requires text_customization; keep OFF until a page feed / URL
+                                        #   exclusions scope it (see AI_MAX_SKILL.md sections 4-5).
+    term_exclusions: list[str]          # text-guideline forbidden terms, <= 25 items, <= 30 chars each
+
+
 class SearchAdGroupConfig(TypedDict, total=False):
     name: str                           # required
     final_url: str                      # required, landing page (http/https)
@@ -75,6 +103,7 @@ class SearchAdGroupConfig(TypedDict, total=False):
     path1: str                          # optional display-path 1, <= 15 chars
     path2: str                          # optional display-path 2, <= 15 chars
     cpc_bid_usd: float                  # optional; defaults to campaign default_cpc_usd
+    disable_search_term_matching: bool  # AI Max only: turn keywordless/broad matching off for this ad group
 
 
 class SearchCampaignConfig(TypedDict, total=False):
@@ -82,11 +111,25 @@ class SearchCampaignConfig(TypedDict, total=False):
     daily_budget_usd: float             # required, >= 1.0
     ad_groups: list                     # required, list of SearchAdGroupConfig (>= 1)
     bidding_strategy: str               # "manual_cpc" (default) | "maximize_clicks"
+                                        #   | "maximize_conversion_value" | "maximize_conversions"
     default_cpc_usd: float              # manual_cpc ad-group bid / maximize_clicks ceiling (default 0.40)
+    target_roas: float                  # for maximize_conversion_value: target ROAS as a ratio
+                                        #   (e.g. 10.0 = 1000%). Optional; omit to let it maximize value uncapped.
+    target_cpa_usd: float               # for maximize_conversions: target CPA in USD. Optional.
     geo_target_ids: list[str]           # default ["2840"] (USA)
     language_ids: list[str]             # default ["1000"] (English)
     enable_search_partners: bool        # default False (keep branded traffic tight)
     negative_keywords: list[str]        # campaign-level negatives, added as BROAD (default [])
+    sitelinks: list                     # campaign-level SitelinkAssets (default []); list of Sitelink
+    callouts: list[str]                 # campaign-level CalloutAssets (default [])
+    structured_snippets: list           # campaign-level StructuredSnippetAssets (default []); list of StructuredSnippet
+    ai_max: dict                        # optional AiMaxSettings; when present + enabled, turns on AI Max for
+                                        #   Search. Requires a conversion Smart Bidding strategy.
+    page_feed_urls: list[str]           # optional; URLs for a PAGE_FEED AssetSet linked to the campaign.
+                                        #   Scopes AI Max final URL expansion (and DSA) to these pages.
+    url_exclusions: list[str]           # optional; substrings. Each becomes a NEGATIVE campaign webpage
+                                        #   criterion (operand URL, operator CONTAINS) to bar pages as
+                                        #   landing destinations (e.g. "/blogs/", "/pages/", "/policies/").
 
 
 class SearchProposal(TypedDict):
@@ -110,6 +153,19 @@ _MATCH_TYPES = {"EXACT", "PHRASE", "BROAD"}
 _MAX_HEADLINE = 30
 _MAX_DESCRIPTION = 90
 _MAX_PATH = 15
+_MAX_SITELINK_TEXT = 25
+_MAX_SITELINK_DESC = 35
+_MAX_CALLOUT = 25
+_MAX_SNIPPET_VALUE = 25
+_MAX_TERM_EXCLUSION = 30
+_MAX_TERM_EXCLUSIONS = 25
+_SMART_STRATEGIES = ("maximize_conversion_value", "maximize_conversions")
+# Google-approved structured snippet headers (English). Header must match exactly.
+_SNIPPET_HEADERS = {
+    "Amenities", "Brands", "Courses", "Degree programs", "Destinations",
+    "Featured hotels", "Insurance coverage", "Models", "Neighborhoods",
+    "Service catalog", "Shows", "Styles", "Types",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +189,20 @@ def _with_defaults(config: SearchCampaignConfig) -> SearchCampaignConfig:
     c.setdefault("language_ids", ["1000"])
     c.setdefault("enable_search_partners", False)
     c.setdefault("negative_keywords", [])
+    c.setdefault("sitelinks", [])
+    c.setdefault("callouts", [])
+    c.setdefault("structured_snippets", [])
+    c.setdefault("page_feed_urls", [])
+    c.setdefault("url_exclusions", [])
+    c.setdefault("ai_max", None)
+    if c.get("ai_max"):
+        am = dict(c["ai_max"])
+        am.setdefault("enable", True)
+        am.setdefault("bundling_required", True)
+        am.setdefault("text_customization", True)
+        am.setdefault("final_url_expansion", False)
+        am.setdefault("term_exclusions", [])
+        c["ai_max"] = am
     groups: list[dict[str, Any]] = []
     for ag in c.get("ad_groups", []) or []:
         ag = dict(ag)
@@ -151,13 +221,21 @@ def _validate_config(config: SearchCampaignConfig) -> list[str]:
         errors.append("daily_budget_usd must be >= $1.00")
 
     strat = config.get("bidding_strategy", "manual_cpc")
-    if strat not in ("manual_cpc", "maximize_clicks"):
+    _cold = ("manual_cpc", "maximize_clicks")
+    _smart = ("maximize_conversion_value", "maximize_conversions")
+    if strat not in _cold + _smart:
         errors.append(
-            f"bidding_strategy {strat!r} not supported for cold-start Search "
-            "(use 'manual_cpc' or 'maximize_clicks')"
+            f"bidding_strategy {strat!r} not supported "
+            "(use 'manual_cpc', 'maximize_clicks', "
+            "'maximize_conversion_value', or 'maximize_conversions')"
         )
-    if float(config.get("default_cpc_usd", 0) or 0) <= 0:
+    # Manual/Maximize-Clicks need a positive CPC (bid or ceiling); Smart Bidding does not.
+    if strat in _cold and float(config.get("default_cpc_usd", 0) or 0) <= 0:
         errors.append("default_cpc_usd must be > 0")
+    if config.get("target_roas") is not None and float(config.get("target_roas") or 0) <= 0:
+        errors.append("target_roas must be > 0 (e.g. 10.0 = 1000%)")
+    if config.get("target_cpa_usd") is not None and float(config.get("target_cpa_usd") or 0) <= 0:
+        errors.append("target_cpa_usd must be > 0")
     if not config.get("geo_target_ids"):
         errors.append("geo_target_ids must contain at least one entry")
 
@@ -205,6 +283,77 @@ def _validate_config(config: SearchCampaignConfig) -> list[str]:
             v = str(ag.get(p, "") or "")
             if len(v) > _MAX_PATH:
                 errors.append(f"{tag}: {p} over {_MAX_PATH} chars: {v!r} ({len(v)})")
+
+    # Campaign-level assets: sitelinks, callouts, structured snippets.
+    for i, sl in enumerate(config.get("sitelinks", []) or []):
+        tag = f"sitelinks[{i}]"
+        text = str(sl.get("text", "")).strip()
+        if not text:
+            errors.append(f"{tag}: text is required")
+        elif len(text) > _MAX_SITELINK_TEXT:
+            errors.append(f"{tag}: text over {_MAX_SITELINK_TEXT} chars: {text!r} ({len(text)})")
+        url = str(sl.get("final_url", "")).strip()
+        if not url:
+            errors.append(f"{tag}: final_url is required")
+        elif not (url.startswith("http://") or url.startswith("https://")):
+            errors.append(f"{tag}: final_url must start with http:// or https://")
+        for d in ("description1", "description2"):
+            v = str(sl.get(d, "") or "")
+            if len(v) > _MAX_SITELINK_DESC:
+                errors.append(f"{tag}: {d} over {_MAX_SITELINK_DESC} chars: {v!r} ({len(v)})")
+
+    for i, co in enumerate(config.get("callouts", []) or []):
+        co = str(co).strip()
+        if not co:
+            errors.append(f"callouts[{i}]: empty callout")
+        elif len(co) > _MAX_CALLOUT:
+            errors.append(f"callouts[{i}]: over {_MAX_CALLOUT} chars: {co!r} ({len(co)})")
+
+    for i, ss in enumerate(config.get("structured_snippets", []) or []):
+        tag = f"structured_snippets[{i}]"
+        header = str(ss.get("header", "")).strip()
+        if header not in _SNIPPET_HEADERS:
+            errors.append(
+                f"{tag}: header {header!r} not an approved header "
+                f"(one of: {', '.join(sorted(_SNIPPET_HEADERS))})"
+            )
+        values = ss.get("values", []) or []
+        if not (3 <= len(values) <= 10):
+            errors.append(f"{tag}: needs 3-10 values (has {len(values)})")
+        for v in values:
+            if len(str(v)) > _MAX_SNIPPET_VALUE:
+                errors.append(f"{tag}: value over {_MAX_SNIPPET_VALUE} chars: {v!r} ({len(str(v))})")
+
+    # AI Max: requires conversion Smart Bidding; final URL expansion requires text customization.
+    am = config.get("ai_max")
+    if am and am.get("enable"):
+        if strat not in _SMART_STRATEGIES:
+            errors.append(
+                "ai_max requires a conversion Smart Bidding strategy "
+                "(maximize_conversion_value or maximize_conversions); "
+                f"got {strat!r}. Search term matching will not work otherwise."
+            )
+        if am.get("final_url_expansion") and not am.get("text_customization"):
+            errors.append(
+                "ai_max.final_url_expansion requires ai_max.text_customization "
+                "(final URL expansion cannot run without text customization)"
+            )
+        tex = am.get("term_exclusions", []) or []
+        if len(tex) > _MAX_TERM_EXCLUSIONS:
+            errors.append(f"ai_max.term_exclusions: max {_MAX_TERM_EXCLUSIONS} (has {len(tex)})")
+        for t in tex:
+            if len(str(t)) > _MAX_TERM_EXCLUSION:
+                errors.append(
+                    f"ai_max.term_exclusions: over {_MAX_TERM_EXCLUSION} chars: {t!r} ({len(str(t))})"
+                )
+
+    for i, u in enumerate(config.get("page_feed_urls", []) or []):
+        u = str(u).strip()
+        if not (u.startswith("http://") or u.startswith("https://")):
+            errors.append(f"page_feed_urls[{i}]: must start with http:// or https:// ({u!r})")
+    for i, x in enumerate(config.get("url_exclusions", []) or []):
+        if not str(x).strip():
+            errors.append(f"url_exclusions[{i}]: empty exclusion")
 
     return errors
 
@@ -298,6 +447,122 @@ def commit_search_campaign(
 
 
 # ---------------------------------------------------------------------------
+# Internal: page feed + URL exclusion ops (shared by create + standalone)
+# ---------------------------------------------------------------------------
+
+def _append_page_feed_ops(
+    client: GoogleAdsClient,
+    customer_id: str,
+    campaign_resource: str,
+    page_feed_urls: list[str],
+    url_exclusions: list[str],
+    ops: list[Any],
+    next_temp,
+    asset_set_name: str,
+) -> None:
+    """Append (to ops) a PAGE_FEED AssetSet + its URL assets + AssetSetAsset links +
+    a CampaignAssetSet link, plus one NEGATIVE webpage campaign criterion per
+    url_exclusion. Works with temp resource names (create flow) or a real campaign
+    resource (standalone). AssetSet must precede the AssetSetAsset/CampaignAssetSet
+    that reference it (ordering handled here)."""
+    urls = [str(u).strip() for u in (page_feed_urls or []) if str(u).strip()]
+    if urls:
+        asset_set_resource = f"customers/{customer_id}/assetSets/{next_temp()}"
+        op = client.get_type("MutateOperation")
+        aset = op.asset_set_operation.create
+        aset.resource_name = asset_set_resource
+        aset.name = asset_set_name
+        aset.type_ = client.enums.AssetSetTypeEnum.PAGE_FEED
+        ops.append(op)
+        for u in urls:
+            asset_resource = f"customers/{customer_id}/assets/{next_temp()}"
+            op = client.get_type("MutateOperation")
+            a = op.asset_operation.create
+            a.resource_name = asset_resource
+            a.page_feed_asset.page_url = u
+            ops.append(op)
+            op = client.get_type("MutateOperation")
+            asa = op.asset_set_asset_operation.create
+            asa.asset_set = asset_set_resource
+            asa.asset = asset_resource
+            ops.append(op)
+        op = client.get_type("MutateOperation")
+        cas = op.campaign_asset_set_operation.create
+        cas.campaign = campaign_resource
+        cas.asset_set = asset_set_resource
+        ops.append(op)
+
+    for x in (url_exclusions or []):
+        x = str(x).strip()
+        if not x:
+            continue
+        op = client.get_type("MutateOperation")
+        crit = op.campaign_criterion_operation.create
+        crit.campaign = campaign_resource
+        crit.negative = True
+        crit.webpage.criterion_name = f"Exclude {x}"
+        cond = crit.webpage.conditions.add()
+        cond.operand = client.enums.WebpageConditionOperandEnum.URL
+        cond.operator = client.enums.WebpageConditionOperatorEnum.CONTAINS
+        cond.argument = x
+        ops.append(op)
+
+
+def add_page_feed_to_campaign(
+    client: GoogleAdsClient,
+    customer_id: str,
+    campaign_id: str,
+    page_feed_urls: list[str],
+    url_exclusions: list[str] | None = None,
+    asset_set_name: str | None = None,
+    enable_final_url_expansion: bool = False,
+) -> dict[str, Any]:
+    """Attach a page feed + URL exclusions to an EXISTING Search campaign (e.g. an
+    AI Max campaign built earlier), in one atomic mutate. Optionally flip final URL
+    expansion ON at the same time (only do this once the scope is in place). Returns
+    a summary dict. Makes the API change immediately; the campaign's own status is
+    untouched (a PAUSED campaign stays paused)."""
+    ops: list[Any] = []
+    _n = [-1]
+
+    def next_temp() -> str:
+        v = str(_n[0]); _n[0] -= 1; return v
+
+    campaign_resource = f"customers/{customer_id}/campaigns/{campaign_id}"
+    _append_page_feed_ops(
+        client, customer_id, campaign_resource,
+        page_feed_urls, url_exclusions or [], ops, next_temp,
+        asset_set_name or f"Page feed (campaign {campaign_id})",
+    )
+
+    if enable_final_url_expansion:
+        # asset_automation_settings is a replace-the-list update, so set BOTH entries.
+        op = client.get_type("MutateOperation")
+        cu = op.campaign_operation.update
+        cu.resource_name = campaign_resource
+        aa_type = client.enums.AssetAutomationTypeEnum
+        aa_status = client.enums.AssetAutomationStatusEnum
+        s1 = cu.asset_automation_settings.add()
+        s1.asset_automation_type = aa_type.TEXT_ASSET_AUTOMATION
+        s1.asset_automation_status = aa_status.OPTED_IN
+        s2 = cu.asset_automation_settings.add()
+        s2.asset_automation_type = aa_type.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION
+        s2.asset_automation_status = aa_status.OPTED_IN
+        op.campaign_operation.update_mask.paths.append("asset_automation_settings")
+        ops.append(op)
+
+    ga = client.get_service("GoogleAdsService")
+    resp = ga.mutate(customer_id=customer_id, mutate_operations=ops)
+    return {
+        "campaign_id": campaign_id,
+        "page_feed_urls": [u for u in page_feed_urls if str(u).strip()],
+        "url_exclusions": list(url_exclusions or []),
+        "final_url_expansion_enabled": bool(enable_final_url_expansion),
+        "operations_applied": len(resp.mutate_operation_responses),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Internal: mutate operation builder
 # ---------------------------------------------------------------------------
 
@@ -357,8 +622,10 @@ def _build_mutate_operations(
     camp.contains_eu_political_advertising = (
         client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
     )
-    # Bidding. Cold account -> Manual CPC (Claude-managed) or Maximize Clicks. Smart
-    # Bidding (tCPA/tROAS/Max Conv) is a Stage 2 switch once conversions accumulate.
+    # Bidding. Cold account -> Manual CPC (Claude-managed) or Maximize Clicks. On a
+    # mature account with conversion history, Smart Bidding (Maximize Conversion Value
+    # + optional tROAS, or Maximize Conversions + optional tCPA) is appropriate from
+    # the start, e.g. branded Search breakouts on an established store.
     strat = config.get("bidding_strategy", "manual_cpc")
     if strat == "manual_cpc":
         client.copy_from(camp.manual_cpc, client.get_type("ManualCpc"))
@@ -367,11 +634,47 @@ def _build_mutate_operations(
         if default_cpc_micros > 0:
             ts.cpc_bid_ceiling_micros = default_cpc_micros
         client.copy_from(camp.target_spend, ts)
+    elif strat == "maximize_conversion_value":
+        mcv = client.get_type("MaximizeConversionValue")
+        troas = config.get("target_roas")
+        if troas is not None and float(troas) > 0:
+            mcv.target_roas = float(troas)
+        client.copy_from(camp.maximize_conversion_value, mcv)
+    elif strat == "maximize_conversions":
+        mc = client.get_type("MaximizeConversions")
+        tcpa = config.get("target_cpa_usd")
+        if tcpa is not None and float(tcpa) > 0:
+            mc.target_cpa_micros = int(float(tcpa) * 1_000_000)
+        client.copy_from(camp.maximize_conversions, mc)
     # Networks: Google Search always; search partners optional; no Display.
     camp.network_settings.target_google_search = True
     camp.network_settings.target_search_network = bool(config.get("enable_search_partners", False))
     camp.network_settings.target_content_network = False
     camp.network_settings.target_partner_search_network = False
+
+    # AI Max for Search (v21+). Feature suite toggled onto the Search campaign; requires
+    # conversion Smart Bidding (validated above). See AI_MAX_SKILL.md.
+    am = config.get("ai_max")
+    if am and am.get("enable"):
+        camp.ai_max_setting.enable_ai_max = True
+        # bundling_required is an enum (AiMaxBundlingRequired: NOT_REQUIRED / REQUIRED), not a bool.
+        _bundle_enum = camp.ai_max_setting.DESCRIPTOR.fields_by_name["bundling_required"].enum_type
+        camp.ai_max_setting.bundling_required = _bundle_enum.values_by_name[
+            "REQUIRED" if am.get("bundling_required", True) else "NOT_REQUIRED"
+        ].number
+        aa_type = client.enums.AssetAutomationTypeEnum
+        aa_status = client.enums.AssetAutomationStatusEnum
+        text_on = bool(am.get("text_customization", True))
+        fue_on = bool(am.get("final_url_expansion", False))
+        s1 = camp.asset_automation_settings.add()
+        s1.asset_automation_type = aa_type.TEXT_ASSET_AUTOMATION
+        s1.asset_automation_status = aa_status.OPTED_IN if text_on else aa_status.OPTED_OUT
+        s2 = camp.asset_automation_settings.add()
+        s2.asset_automation_type = aa_type.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION
+        s2.asset_automation_status = aa_status.OPTED_IN if fue_on else aa_status.OPTED_OUT
+        for t in am.get("term_exclusions", []) or []:
+            camp.text_guidelines.term_exclusions.append(str(t).strip())
+
     idx["campaign"] = len(ops)
     ops.append(op)
 
@@ -403,6 +706,64 @@ def _build_mutate_operations(
         crit.keyword.match_type = match_enum.BROAD
         ops.append(op)
 
+    # ----- 4a. Page feed (PAGE_FEED AssetSet) + URL exclusions (negative webpage) -----
+    _append_page_feed_ops(
+        client, customer_id, camp_resource,
+        config.get("page_feed_urls", []) or [],
+        config.get("url_exclusions", []) or [],
+        ops, next_temp,
+        f"{config['campaign_name']} Page Feed",
+    )
+
+    # ----- 4b. Campaign-level assets: sitelinks, callouts, structured snippets -----
+    # Each asset is created (temp resource name) then linked to the campaign via a
+    # CampaignAsset with the matching field_type, all in this one atomic mutate.
+    field_type_enum = client.enums.AssetFieldTypeEnum
+
+    def _link_asset(asset_resource: str, field_type: Any) -> None:
+        op = client.get_type("MutateOperation")
+        ca = op.campaign_asset_operation.create
+        ca.campaign = camp_resource
+        ca.asset = asset_resource
+        ca.field_type = field_type
+        ops.append(op)
+
+    for sl in config.get("sitelinks", []) or []:
+        asset_resource = temp_resource("assets", next_temp())
+        op = client.get_type("MutateOperation")
+        a = op.asset_operation.create
+        a.resource_name = asset_resource
+        a.sitelink_asset.link_text = str(sl["text"]).strip()
+        if sl.get("description1"):
+            a.sitelink_asset.description1 = str(sl["description1"]).strip()
+        if sl.get("description2"):
+            a.sitelink_asset.description2 = str(sl["description2"]).strip()
+        a.final_urls.append(str(sl["final_url"]).strip())
+        ops.append(op)
+        _link_asset(asset_resource, field_type_enum.SITELINK)
+
+    for co in config.get("callouts", []) or []:
+        co = str(co).strip()
+        if not co:
+            continue
+        asset_resource = temp_resource("assets", next_temp())
+        op = client.get_type("MutateOperation")
+        op.asset_operation.create.resource_name = asset_resource
+        op.asset_operation.create.callout_asset.callout_text = co
+        ops.append(op)
+        _link_asset(asset_resource, field_type_enum.CALLOUT)
+
+    for ss in config.get("structured_snippets", []) or []:
+        asset_resource = temp_resource("assets", next_temp())
+        op = client.get_type("MutateOperation")
+        a = op.asset_operation.create
+        a.resource_name = asset_resource
+        a.structured_snippet_asset.header = str(ss["header"]).strip()
+        for v in ss.get("values", []) or []:
+            a.structured_snippet_asset.values.append(str(v).strip())
+        ops.append(op)
+        _link_asset(asset_resource, field_type_enum.STRUCTURED_SNIPPET)
+
     # ----- 5. Per ad group: AdGroup, keywords, RSA -----
     for ag in config.get("ad_groups", []):
         ag_resource = temp_resource("adGroups", next_temp())
@@ -417,6 +778,8 @@ def _build_mutate_operations(
         ag_op.status = client.enums.AdGroupStatusEnum.PAUSED
         if strat == "manual_cpc":
             ag_op.cpc_bid_micros = cpc_micros
+        if ag.get("disable_search_term_matching"):
+            ag_op.ai_max_ad_group_setting.disable_search_term_matching = True
         idx["ad_groups"].append(len(ops))
         ops.append(op)
 

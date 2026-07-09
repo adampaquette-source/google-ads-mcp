@@ -40,9 +40,17 @@ from ads_mcp.creation.search import (
     SearchCampaignConfig,
     SearchCreationResult,
     SearchProposal,
+    add_page_feed_to_campaign,
     commit_search_campaign,
     get_search_proposal,
     propose_search_campaign,
+)
+from ads_mcp.creation.experiments import (
+    commit_ai_max_experiment,
+    end_ai_max_experiment,
+    get_ai_max_experiment_proposal,
+    propose_ai_max_experiment,
+    schedule_ai_max_experiment,
 )
 from ads_mcp.creation.shopping import (
     ShoppingCreationResult,
@@ -1606,6 +1614,8 @@ def propose_google_ads_search_campaign(
           descriptions -- list of 2-4 strings, <= 90 chars each (required)
           path1, path2 -- optional display-path segments, <= 15 chars each
           cpc_bid_usd  -- optional ad-group max CPC; defaults to default_cpc_usd
+          disable_search_term_matching -- optional bool; AI Max only, turns off
+                          keywordless/broad matching for this one ad group
       bidding_strategy       -- "manual_cpc" (default) | "maximize_clicks"
                                 | "maximize_conversion_value" | "maximize_conversions"
       default_cpc_usd        -- float, default 0.40 (manual_cpc bid / max_clicks ceiling)
@@ -1619,6 +1629,21 @@ def propose_google_ads_search_campaign(
       callouts               -- list of strings (<=25 chars each)
       structured_snippets    -- list of {header (approved header e.g. "Types"/"Brands"/"Models"),
                                 values (3-10 strings, <=25 chars each)}
+      ai_max                 -- optional dict to enable AI Max for Search (feature suite, v21+).
+                                REQUIRES a conversion Smart Bidding strategy. Fields:
+                                  enable (bool, default True), bundling_required (bool, default True),
+                                  text_customization (bool, default True),
+                                  final_url_expansion (bool, default False; requires text_customization,
+                                    keep OFF until a page feed / URL exclusions scope it),
+                                  term_exclusions (list of <=25 strings, <=30 chars each).
+      page_feed_urls         -- optional list of URLs for a PAGE_FEED AssetSet linked to the
+                                campaign; scopes AI Max final URL expansion (and DSA) to these pages.
+      url_exclusions         -- optional list of substrings; each becomes a NEGATIVE campaign
+                                webpage criterion (URL CONTAINS) barring pages as landing destinations
+                                (e.g. "/blogs/", "/pages/", "/policies/").
+                                Brand lists remain a UI step. Page feeds/URL exclusions can also be
+                                added to an existing campaign via configure_google_ads_ai_max_scope,
+                                and the 50/50 experiment via propose_google_ads_ai_max_experiment.
 
     customer_id: 10-digit account ID.
     """
@@ -1651,6 +1676,94 @@ def commit_google_ads_search_campaign(proposal_id: str) -> SearchCreationResult:
     status="created_paused".
     """
     return commit_search_campaign(get_client(), proposal_id)
+
+
+# ---------------------------------------------------------------------------
+# AI Max scope (page feed + URL exclusions) and built-in experiment
+# ---------------------------------------------------------------------------
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
+def configure_google_ads_ai_max_scope(
+    customer_id: str,
+    campaign_id: str,
+    page_feed_urls: list[str],
+    url_exclusions: list[str] | None = None,
+    asset_set_name: str | None = None,
+    enable_final_url_expansion: bool = False,
+) -> dict:
+    """Attach a page feed + URL exclusions to an EXISTING Search campaign, in one
+    atomic API call. Use this to scope AI Max final URL expansion (FUE) to a set of
+    approved pages before turning FUE on.
+
+    Creates a PAGE_FEED AssetSet from page_feed_urls, links it to the campaign, and
+    adds one NEGATIVE webpage criterion per url_exclusions entry (URL CONTAINS). If
+    enable_final_url_expansion is True, also flips FUE (and text customization) ON in
+    the same mutate. Turn FUE on only once the page feed + exclusions are in place
+    (unscoped FUE routes to any indexable page). Does NOT change the campaign's
+    paused/enabled status.
+
+    customer_id: 10-digit account ID. campaign_id: the Search campaign to scope.
+    page_feed_urls: full http(s) URLs (e.g. pro-machine collection pages).
+    url_exclusions: substrings to bar as landing pages (e.g. ["/blogs/", "/pages/"]).
+    """
+    return add_page_feed_to_campaign(
+        get_client(), customer_id, campaign_id, page_feed_urls,
+        url_exclusions=url_exclusions, asset_set_name=asset_set_name,
+        enable_final_url_expansion=enable_final_url_expansion,
+    )
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
+def propose_google_ads_ai_max_experiment(customer_id: str, config: dict) -> dict:
+    """Validate + store a pending AI Max built-in experiment (ADOPT_AI_MAX) proposal.
+
+    Makes NO API changes. The experiment splits a Search campaign's traffic 50/50
+    between a control arm (AI Max off) and a treatment arm (AI Max on) so lift is
+    measured incrementally, not by AI Max's in-platform credit.
+
+    config: base_campaign_id (required), experiment_name (required),
+    suffix (default "aimax"), treatment_split (percent to AI Max arm, default 50),
+    duration_days (default 28, min 14), description (optional).
+
+    Preconditions Google enforces: base campaign is Search on conversion Smart
+    Bidding, not a Portfolio bid strategy or shared budget, no other active
+    experiment, no legacy features. Enable the base campaign before scheduling.
+    """
+    return propose_ai_max_experiment(get_client(), customer_id, config)
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
+def get_google_ads_ai_max_experiment_proposal(proposal_id: str) -> dict:
+    """Read a pending AI Max experiment proposal by ID for review."""
+    return get_ai_max_experiment_proposal(proposal_id)
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
+def commit_google_ads_ai_max_experiment(proposal_id: str, dry_run: bool = False) -> dict:
+    """Create the AI Max experiment (SETUP) + control and treatment arms. Does NOT
+    start it (no spend yet). dry_run=True returns the planned operations without any
+    API call. After commit, call schedule_google_ads_ai_max_experiment to start it.
+
+    proposal_id: the short ID from propose_google_ads_ai_max_experiment.
+    """
+    return commit_ai_max_experiment(get_client(), proposal_id, dry_run=dry_run)
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
+def schedule_google_ads_ai_max_experiment(experiment_resource: str) -> dict:
+    """Start a SETUP AI Max experiment (long-running op). THIS IS THE STEP THAT GOES
+    LIVE AND SPENDS. Requires the base campaign to be ENABLED and eligible. Get explicit
+    approval before calling.
+
+    experiment_resource: the resource name returned by commit_google_ads_ai_max_experiment.
+    """
+    return schedule_ai_max_experiment(get_client(), experiment_resource)
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
+def end_google_ads_ai_max_experiment(experiment_resource: str) -> dict:
+    """Stop a running AI Max experiment early (rollback is AI Max off, nothing deleted)."""
+    return end_ai_max_experiment(get_client(), experiment_resource)
 
 
 # ---------------------------------------------------------------------------

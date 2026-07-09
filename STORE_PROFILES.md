@@ -51,7 +51,7 @@ Every store section follows this structure:
 | merchant_center_id | `1153808` (feed_label `US`, enable_local true) -- set `campaign.shopping_setting` on any PMax/Shopping create so listing filters (SHOPPING source) are allowed |
 | free_shipping_threshold | $199 (small parcel ground only, items below 140 lbs and within size/packaging limits) |
 | free_shipping_verbiage | "Free Ground Shipping on Orders Over $199" -- source: `https://toolup.com/pages/toolup-shipping-policy` |
-| brand_collection_url_pattern | `/collections/<brand>` (e.g. `/collections/milwaukee`, `/collections/southwire`) |
+| brand_collection_url_pattern | `/collections/<brand>` (e.g. `/collections/ridgid`, `/collections/dewalt`, `/collections/greenlee`, `/collections/southwire`). **Exception: Milwaukee is `/collections/milwaukee-tools` (bare `/collections/milwaukee` 404s).** Always verify the exact handle before use. |
 | category_collection_url_pattern | `/collections/<category-slug>` |
 | product_detail_url_pattern | `/products/<handle>` |
 | campaign_naming_convention | `QT - PMax - <Brand or Label>` for brand breakouts; `QT - Shopping - <Label>`; `QT Search - <Label>` for branded search. "AB \| ..." prefix is used by a different operator for test campaigns. |
@@ -61,7 +61,7 @@ Every store section follows this structure:
 | default_geo_target_ids | `["2840"]` (USA) |
 | default_language_ids | `["1000"]` (English) |
 | account_quirks | Existing brand breakout campaigns: Ridgid (tROAS 9.5x), Greenlee (10.0x), Milwaukee (10.75x), Dewalt (11.0x), Heated Gear (15.0x). Use the average (~10x) as the baseline tROAS for new brand breakouts. **Brand breakouts segment via a custom-label listing tree (NOT a plain product_brand filter):** cl2 exclude `is-bundle` -> cl0 `in stock` only -> `product_brand` = <brand> -> cl1 include `default`/`low-performers`/`top-ids`, exclude `zombie` + unlabeled. custom_label_0=availability, cl1=performance tier, cl2=product flags (populated catalog-wide by DataFeedWatch). Use `propose_google_ads_pmax_campaign` asset-group `listing_filter="brand_breakout"`. Brand token "ego" trips Google's TOBACCO (vape) policy filter on search themes -- add EGO themes via a policy-violation exemption. |
-| last_verified | 2026-07-06 |
+| last_verified | 2026-07-07 |
 
 ---
 
