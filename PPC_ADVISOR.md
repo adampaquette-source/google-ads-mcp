@@ -185,6 +185,7 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 |---|---|---|---|---|---|
 | Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 LIVE (Manual CPC $0.55, $25/day, 3M roster); 233 campaign negatives added 2026-07-03; only hearing protection converting; weekly ops automated | 2026-07-07 |
 | Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Starter campaigns BUILT, PAUSED 2026-07-03 (Search `23999926235` + curated Shopping `23999925116`); DFW label wiring done. Blocked on MC `5812518721` misrepresentation clear + tracking verify + Adam's enable go | 2026-07-12 |
+| Red Tool Store | `4033622485` | `the-milwaukee-store` | `red-tool-store/` | Milwaukee Brand Search buildout: PROPOSAL.md V1 drafted (~20 ad groups, tROAS 10.5, $200/day), awaiting Checkpoint 1 scope answers from Adam | 2026-07-12 |
 
 Add a row when you begin a new account project and create its folder.
 

@@ -1276,7 +1276,7 @@ def upload_google_ads_image_asset(
 ) -> dict:
     """Fetch an image from a public URL and upload it as a Google Ads image asset.
 
-    The image is fetched, base64-encoded, and uploaded via AssetService.
+    The image is fetched and uploaded as raw bytes via AssetService.
     Returns the resource_name of the new asset -- use this in PMax campaign configs.
 
     customer_id: 10-digit account ID.

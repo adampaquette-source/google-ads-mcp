@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import urllib.request
 
 from google.ads.googleads.client import GoogleAdsClient
@@ -38,7 +37,10 @@ def upload_image_asset(
     asset = operation.create
     asset.name = asset_name
     asset.type_ = client.enums.AssetTypeEnum.IMAGE
-    asset.image_asset.data = base64.b64encode(image_bytes).decode("utf-8")
+    # image_asset.data is a raw bytes proto field. The gRPC transport handles
+    # wire encoding itself; passing a base64 string raises
+    # "expected bytes, str found" under use_proto_plus=False.
+    asset.image_asset.data = image_bytes
 
     response = asset_service.mutate_assets(
         customer_id=customer_id,
