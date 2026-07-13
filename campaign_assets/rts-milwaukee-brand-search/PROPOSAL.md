@@ -121,7 +121,7 @@ Dropped per Ahrefs economics: FORCE LOGIC/crimpers (~400/mo aggregate — the $5
 - home depot, lowes, harbor freight, ace hardware (competitor-retailer intent) — also candidates for account-level shared negatives
 - red tool store, the red store (owned by `QT - Search - TM`)
 - heated (owned by the Heated Gear campaigns)
-- meat grinder, vacuum pump (unless stocked), snow blower (unless stocked)
+- meat grinder, mag drill, core drill, riding mower, lawn mower (catalog-verified not active 2026-07-13; snow blower and vacuum pump REMOVED from this list — both stocked, now mini ad groups)
 
 ### Cross-campaign interaction — deliberate deviation from ToolUp method
 
@@ -145,7 +145,20 @@ Campaign-level callouts (all 3 campaigns): `Free Ship Over $199` | `4.6/5 From 1
 
 Structured snippet (header: Types), Campaign A: `Drills, Saws, Batteries, PACKOUT, Grinders, Nailers, Lighting`. Campaign B: `Batteries, Impact Wrenches, Combo Kits, Inflators, Lasers`.
 
-Sitelinks (4, campaign level, handles pending the collection-map pull): PACKOUT Storage -> /collections/packout-storage | M18 Tools -> /collections/m18-tools | Batteries + Chargers -> (handle TBD) | Limited Time Deals -> (handle TBD).
+Sitelinks (4, campaign level, all handles verified published): PACKOUT Storage -> /collections/packout-storage | M18 Tools -> /collections/m18-tools | Batteries + Chargers -> /collections/batteries-and-chargers | Combo Kits -> /collections/combo-kits.
+
+### Verified landing map + data adjustments (2026-07-13 pull, full detail in `red-tool-store/checkpoint2_data.md`)
+
+Every ad group's landing collection verified published (product counts in parens): Brand-Bare -> `power-tools` (909) or homepage; PACKOUT Boxes -> `packout-storage` (72) (+`packout-rolling-storage` 109 / `packout-shop-storage` 86 as splits); PACKOUT Accessories -> `packout-accessories` (15); M18 Batteries -> `m18-batteries-and-chargers` (62); Drills -> `drills` (51); Impacts -> `impact-wrenches` (83) + `impact-drivers` (25); Ratchets -> `milwaukee-ratchets` (16); Combo Kits -> `combo-kits` (170); Nailers -> `nailers` (24); Circular Saws -> `milwaukee-circular-saws` (14); Recip/SAWZALL -> `milwaukee-recip-saws` (21); Miter -> `milwaukee-miter-saws` (4, THIN); Table -> `milwaukee-table-saws` (2, VERY THIN); Blowers -> `milwaukee-blowers` (14); Vacuums -> `vacuums` (21); Grinders -> `grinders` (57); Inflators -> `milwaukee-inflators` (5); Lighting -> `lighting` (90); Heat Guns -> `heat-guns` (6); Lasers -> `lasers` (35); Trimmers -> `milwaukee-string-trimmers` (6); Chainsaws -> `milwaukee-chainsaws` (12).
+
+**Structural adjustments from the pull:**
+- **SAWZALL keywords upgraded** (Ahrefs follow-up): `sawzall` 66,000/mo + `milwaukee sawzall` 13,000/mo dwarf `reciprocating saw` (1,800/mo). Add exact+phrase: `milwaukee sawzall`, `sawzall` (bare term is Milwaukee's own trademark = brand traffic), `m18 sawzall`, `milwaukee hackzall`. Copy already leads with SAWZALL.
+- **Mowers DROPPED as a theme** (catalog reality: `milwaukee-m18-mowers` has 2 products, riding mower NOT FOUND). Ad group 21 becomes **String Trimmers only**. Mower keywords parked; revisit if Milwaukee expands the lineup.
+- **Snow Blower ADDED as a mini ad group** (was on the exclusion list, but it IS stocked: 3036-22HD kit, ACTIVE, $1,499, 10 units). Keywords: milwaukee snow blower (5.9k/mo) exact+phrase; landing = the product page. Removed from negatives.
+- **Vacuum Pump ADDED as a mini ad group** (stocked: 2941-21 M18 FUEL 5 CFM kit, ACTIVE, $899). Keywords: milwaukee vacuum pump (2.1k/mo); landing = product page. Removed from negatives.
+- **Mag drill / core drill / riding mower confirmed NOT active** -> stay excluded; `mag drill`, `core drill`, `riding mower` added as campaign negatives.
+- **Thin-collection flags for Adam:** Miter Saws (4 products) and Table Saws (2) have strong search demand (6.8k/mo each) but skinny landings; recommend keeping both ad groups (the pages are precisely relevant, just small) with reduced expectations, or merging into one bench-saws group. Ratchets (16) and Heat Guns (6) are acceptable.
+- **Campaign B handle fix:** 3632-21 uses the published `milwaukee-3632-21-m12-green-360-3-plane-laser-kit` (the roster's `-1`-suffixed handle is a DRAFT duplicate). All 13 flagship models verified ACTIVE and in stock.
 
 ### Campaign A per-ad-group uniques (headlines <=30 chars, descriptions <=90; keywords per the Step 2 tables; landing handles filled after the collection-map pull)
 
@@ -210,5 +223,6 @@ Offer-led, inventory-gated. H pool: `FREE tool with starter kit` (26) / `M18 sta
 |---|---|---|---|
 | V1 | 2026-07-12 | Claude (Fable 5) | Initial draft from account audit + Ahrefs research (25 clusters) + Shopify 90d sales. Structure, ad group plan, negatives, methodology deviations documented. Awaiting Checkpoint 1. |
 | V2 | 2026-07-12 | Claude (Fable 5) | Checkpoint 1 CONFIRMED by Adam: full category scope; added Campaign B (top-100 products, model-number ad groups) as the DSA-sunset replacement per Adam (skeptical of AI Max); PACKOUT post-mortem on `packout-search` launched, findings to shape the PACKOUT groups. Top-100 roster pull launched. |
+| V3.1 | 2026-07-13 | Claude (Fable 5) | Checkpoint 2 execution: full RSA copy for A/B/C + shared pool + extensions. Landing map verified per ad group (all collections published; counts recorded). SAWZALL keywords upgraded (66k+13k/mo). Mowers dropped (2-product catalog), Snow Blower + Vacuum Pump added as stocked mini groups, mag/core drill + riding mower negatived. Sitelinks finalized. B handle fix (3632-21 canonical). Data: `red-tool-store/checkpoint2_data.md`. Remaining: Adam's copy read, budgets/tROAS at publish, then propose/commit PAUSED. |
 | V3 | 2026-07-12 | Claude (Fable 5) | Per Adam: budgets/tROAS are best-guess drafts (he finalizes at publish); roster CSV permanently local-only (now gitignored); Campaign B restructured to standard distinct SKUs only; promotion bundles carved into optional Campaign C `QT - Search - Milwaukee Top Bundles` (inventory-gated); stock-out maintenance mechanism designed (control center stock-sync job, propose -> approve -> commit, ad group names carry model numbers). |
 | V2.1 | 2026-07-12 | Claude (Fable 5) | PACKOUT post-mortem section added (failure = starved tROAS 10x silo + single ad group + 63% broad-match waste; category itself proven: core terms ~30x, DSA packout routing ~36x). Campaign B designed from the roster: ~15 family ad groups, exact+phrase model keywords incl. bare SKUs, tROAS 12 / $150 day draft, Starter-Kit-bundle franchise group first, heated SKUs held out, OOS exclusions. |
