@@ -44,3 +44,4 @@ logs/
 # Control center local data + copied Shopify MCP credentials
 control_center.db
 shopify_mcp/
+red-tool-store/rts_top100_products_365d.csv
