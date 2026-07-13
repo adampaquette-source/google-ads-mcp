@@ -1,6 +1,6 @@
 # Spyder Supply: Working State
 
-Last updated: 2026-07-03. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`.
+Last updated: 2026-07-12. The live snapshot of where this account stands. Fast-changing. For durable facts see `NOTES.md`.
 
 ## Current stage
 **Starter campaigns CREATED (PAUSED) 2026-07-03.** Both live in account `9267883382`, not serving:
@@ -39,10 +39,15 @@ Nothing yet.
 Create it **from inside the MCC** (Accounts > + > Create new account) so it is natively manager-owned and the service account inherits Standard access. For payment, during the new account's billing setup pick the **existing Google payments profile** rather than creating a new one -- a payments profile can back many Ads accounts, so it reuses the same business profile + funding source (card). If the MCC has consolidated/manager billing (monthly invoicing) enabled, the sub-account can bill straight through the manager. Claude cannot create the account or set up billing (account creation + payment entry are off-limits); Adam does it, then hands over the customer_id.
 
 ## Open questions / waiting on
-- Spyder margin / AOV / target geo (for breakeven + bid floors).
-- Predecessor account `3174244337` (TBO) + its Merchant Center feed: wind down vs repurpose? Is a Merchant Center account linked to the new `9267883382` yet, and where does the Spyder product feed point?
+- MC `5812518721` misrepresentation flag: cleared yet? Serving on the Shopping campaign is blocked until it is.
+- Conversion tracking on `9267883382`: still unverified (account has never served).
+- Adam's go to enable the two PAUSED starter campaigns. Search `23999926235` needs neither MC nor DFW and can go live first.
+- Predecessor account `3174244337` (TBO) + its old Merchant Center feed: wind down vs repurpose? Decision pending Adam. The Spyder feed now points at MC `5812518721` on the new account.
+
+(Resolved and moved to `NOTES.md`: margin ~30% / breakeven 333%, AOV concentrated in kits, geo = US-wide, MC linkage. These were stale open questions from 2026-06-19.)
 
 ## Changelog (newest first)
+- 2026-07-12: Housekeeping reconcile. Removed stale open questions already answered in NOTES.md since 2026-06-19 (margin/AOV/geo, MC linkage) and replaced them with the actual current blockers: MC misrepresentation clear, tracking verify, Adam's enable go, TBO wind-down decision. No account changes.
 - 2026-07-03: Loaded the Spyder DFW lookup + configured `custom_label_2` on the Google Shopping channel (via Claude-in-Chrome), mirroring PWS (Use lookup table + Add from URL of the Spyder tab CSV export + Only IF sku is in list + ELSE empty). Wrote 579 rows to the `Spyder` tab of the shared DFW sheet via the service account. Saved successfully; preview confirmed. DFW prerequisite now DONE.
 - 2026-07-03: Built the Standard Search creation tool (`ads_mcp/creation/search.py`, API ref section 14), then CREATED both starter campaigns PAUSED in `9267883382`: Search `23999926235` (11 ad groups/45 kw, full branded set) and Shopping `23999925116` (curated, gate `spyder_curated`, MC `5812518721`). 3 keywords (`spyder mach blue`/`mach-blue`/`black series`) dropped -- flagged EXEMPTIBLE under Google's "Guns" policy (Spyder = also a paintball brand); worth a policy-exemption feature later. MC linked but flagged for misrepresentation (serving blocked until cleared).
 - 2026-06-21: Built the full campaign plan. Pulled + segmented the 728-SKU active catalog; wrote CAMPAIGN_BUILD_SPEC.md (two Standard Shopping campaigns curated/fallback + branded Search 11 ad groups), persisted rosters + DFW lookup CSVs. Ready to push once MC feed + DFW + tracking are live.

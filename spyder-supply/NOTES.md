@@ -2,9 +2,9 @@
 
 Durable facts and standing rules for the Spyder Supply account. Update when a fact changes; this is the authoritative reference. For current working state see `STATE.md`.
 
-Last updated: 2026-06-19.
+Last updated: 2026-07-12.
 
-Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. **Replacing Truck Box Outlet** (rebrand). Storefront is already live at **spydersupply.com**. No Google Ads account yet; not yet in the `shopify-toolup` server. Identifiers below fill in as it is provisioned.
+Status: **BUILT, PAUSED-ready.** Cold store, **replacing Truck Box Outlet** (in-place rebrand), storefront live at **spydersupply.com**. Starter campaigns (branded Search + curated Standard Shopping) created PAUSED 2026-07-03 in `9267883382`; DFW `custom_label_2` wiring done. Blocked on MC misrepresentation clear + conversion tracking verify + Adam's enable go. See `STATE.md`.
 
 ## Identifiers
 | Thing | Value |
@@ -13,6 +13,9 @@ Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. 
 | MCC login_customer_id | `7404361064` |
 | Shopify store key | **`weather-guard-store`** (env slug `TBO_STORE`) -- the Truck Box Outlet store, rebranded in place. Already in the `shopify-toolup` server; accessible (verified 2026-06-19). Same Shopify store, now Spyder. |
 | Public storefront | **spydersupply.com** (live) |
+| Merchant Center | **`5812518721`** -- linked to `9267883382`; flagged for misrepresentation as of 2026-07-03 (Shopping cannot serve until cleared). |
+| Starter campaigns (PAUSED) | Search `23999926235` "Spyder \| Search \| Branded"; Shopping `23999925116` "Spyder \| Shopping \| Curated (Core)" (gate `custom_label_2 = spyder_curated`). Created 2026-07-03. |
+| Target geo | US-wide. |
 | Store identity | **Spyder brand power tool accessories** (replaces Truck Box Outlet). Catalog: scrapers, hole saws, bi-metal reciprocating/demolition saw blades. Spyder products are ACTIVE (50+); old WeatherGuard truck-box catalog set to DRAFT (retiring). |
 | Predecessor ads account | **Weather Guard Store, customer_id `3174244337`** (identifiers Truck Box Outlet / TBO), still ENABLED under the MCC. Holds truck-box ad history + likely a Merchant Center link. Default plan: start clean on the new Spyder account `9267883382` and wind down `3174244337` + its feed (the old history is irrelevant to Spyder). Decision pending Adam. |
 
@@ -39,10 +42,10 @@ Status: **ONBOARDING / greenfield.** New cold store flagged by Adam 2026-06-19. 
 - **Two ads accounts share this one store:** old `3174244337` (TBO) and new `9267883382` (Spyder). Feed/Merchant-Center wiring must point the Spyder feed at the new account, not the old.
 
 ## Known gaps / data we do not have
-- Margin / breakeven, target geo, AOV floor for the Spyder line.
-- Whether the predecessor account `3174244337` and its Merchant Center feed should be paused/wound down, and whether a Merchant Center account is already linked to the new `9267883382`.
-- Full active Spyder SKU count (search returned 50+, capped by limit; pull full count at diagnosis).
-- Conversion tracking on the new `9267883382` (untested -- empty account). The store checkout converts, but the new Ads account's conversion action import must be confirmed before scaling.
+- Conversion tracking on the new `9267883382` (untested -- account has never served). The store checkout converts, but the new Ads account's conversion action import must be confirmed before scaling.
+- Wind-down decision for the predecessor account `3174244337` (TBO) and its old Merchant Center feed. Pending Adam.
+
+(Resolved since 2026-06-19: margin/breakeven/AOV confirmed (Economics above); geo = US-wide; MC `5812518721` linked (Identifiers above); full catalog pulled 2026-06-21: 728 active Spyder SKUs, 455 in stock.)
 
 ## Decision log
-None yet. Add a `DECISIONS.md` when decisions begin.
+See `DECISIONS.md` (D1-D10). Path ratified by Adam 2026-06-19: Standard Shopping + branded Search first, PMax deferred to Stage 2.

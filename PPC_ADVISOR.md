@@ -4,7 +4,7 @@ Read this file at the start of any session whose task is **campaign or account o
 
 This is the strategy and optimization layer. For the mechanics of building net-new campaigns (asset groups, copy rules, GAE uploads), read `CAMPAIGN_CREATION_BEST_PRACTICES.md`. For API mechanics, read `GOOGLE_ADS_API_REFERENCE.md`. This file sits above both.
 
-Last updated: 2026-06-17.
+Last updated: 2026-07-12.
 
 ## The role you adopt
 
@@ -183,8 +183,8 @@ Last updated: <YYYY-MM-DD>. The live snapshot of where this account stands. Fast
 
 | Account | customer_id | Shopify key | Folder | Stage / status | Last touched |
 |---|---|---|---|---|---|
-| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 LIVE (Manual CPC $0.55, $25/day, 3M roster); weekly ops automated | 2026-06-19 |
-| Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Strategy ratified (D4-D8): Shopping + branded Search first, PMax Stage 2. Blocked on build-time prereqs (feed/MC wiring, tracking verify, roster/budget) | 2026-06-19 |
+| Pro Work Supply | `1532947017` | `wood-shop-outlet` | `pro-work-supply/` | Stage 1 LIVE (Manual CPC $0.55, $25/day, 3M roster); 233 campaign negatives added 2026-07-03; only hearing protection converting; weekly ops automated | 2026-07-07 |
+| Spyder Supply | `9267883382` | `weather-guard-store` (TBO rebrand, in place) | `spyder-supply/` | Starter campaigns BUILT, PAUSED 2026-07-03 (Search `23999926235` + curated Shopping `23999925116`); DFW label wiring done. Blocked on MC `5812518721` misrepresentation clear + tracking verify + Adam's enable go | 2026-07-12 |
 
 Add a row when you begin a new account project and create its folder.
 
