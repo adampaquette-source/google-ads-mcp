@@ -12,8 +12,8 @@ Status: **ACTIVE, Tier 1.** Large healthy account taken on as an optimization pr
 | Google Ads account | **Themilwaukeestore.com, customer_id `4033622485`** under MCC `7404361064` |
 | Shopify store key | `the-milwaukee-store` (env slug `RTS_STORE`) |
 | Aliases | Milwaukee Store, Red Tool Store, RTS |
-| Public storefront | likely themilwaukeestore.com — UNVERIFIED, confirm before any final_url use |
-| Merchant Center | TBD |
+| Public storefront | **redtoolstore.com** (verified live 2026-07-12; `themilwaukeestore.com` 301s to it). "Red Tool Store: Milwaukee Tool Superstore". Free Ground Shipping Over $199. MAP quirk: many SKUs show "See Price In Cart" -- no price claims in ad copy for those. |
+| Merchant Center | TBD -- verify domain match before Shopping/PMax work |
 
 ## Economics / performance (baseline 2026-07-12, LAST_30_DAYS)
 - $114,981 spend, 3,349 conv, $1.18M conv value, ROAS 10.29 blended.

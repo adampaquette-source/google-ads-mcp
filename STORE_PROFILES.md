@@ -431,21 +431,21 @@ Every store section follows this structure:
 |---|---|
 | shopify_key | `the-milwaukee-store` |
 | shopify_domain | `the-milwaukee-store.myshopify.com` |
-| public_website | TBD |
-| merchant_center_domain | TBD |
-| free_shipping_threshold | TBD |
-| free_shipping_verbiage | TBD |
-| brand_collection_url_pattern | TBD |
-| category_collection_url_pattern | TBD |
-| product_detail_url_pattern | TBD |
-| campaign_naming_convention | TBD |
-| brand_string_casing | TBD |
-| logo_asset_resource_name | TBD |
-| business_name | TBD |
+| public_website | **redtoolstore.com** (canonical, apex). `themilwaukeestore.com` 301s to `www.redtoolstore.com` which resolves to the apex. Site title: "Red Tool Store: Milwaukee Tool Superstore". Use `https://redtoolstore.com/...` for final URLs. |
+| merchant_center_domain | TBD -- verify it matches redtoolstore.com before any PMax/Shopping build |
+| free_shipping_threshold | $199 (ground) |
+| free_shipping_verbiage | "Free Ground Shipping Over $199" (announcement bar, verified live 2026-07-12). Individual products also carry per-item "Free Shipping" badges. |
+| brand_collection_url_pattern | n/a -- single-brand store; the catalog IS Milwaukee. Category collections serve the role. |
+| category_collection_url_pattern | `/collections/<category-slug>` -- rich taxonomy verified live: `m18-tools`, `m12-tools`, `mx-fuel`, `packout-storage`, `packout-shop-storage`, `impact-wrenches`, `milwaukee-mechanic-tool-sets`, `milwaukee-ratchets`, `milwaukee-crimpers`, `hole-saws`, `drill-bits`, `saw-blades`, `hand-tools`, `apparel`, etc. Verify each handle before use. |
+| product_detail_url_pattern | `/products/<handle>` |
+| campaign_naming_convention | `QT - <Channel> - <Label>` (e.g. `QT - Search - TM`, `QT - PMax - Top IDs`, `QT - Shopping - Margin Bands`); `AB \| ...` prefix = the other operator's test campaigns. |
+| brand_string_casing | `"milwaukee"` lowercase in `segments.product_brand` (consistent with ToolUp). |
+| logo_asset_resource_name | TBD -- pull via `list_google_ads_image_assets` at build time |
+| business_name | `Red Tool Store` |
 | default_geo_target_ids | `["2840"]` |
 | default_language_ids | `["1000"]` |
-| account_quirks | Tier 1 account (per `CONSULTATION_RESULTS.md`). |
-| last_verified | -- |
+| account_quirks | Tier 1 account (per `CONSULTATION_RESULTS.md`). **MAP compliance: many products show "See Price In Cart"** -- do not quote prices in ad copy for those SKUs; per-SKU check required before any price claim. Social proof available for copy: 4.56/5 average across 1,303 reviews (Reviews.io style widget, verified 2026-07-12). Signature merchandising: "w/ FREE [item]" bundle offers ("Exclusive Deals"), "Limited Time Deals", and a "Milwaukee PACKOUT Builder" experience (strong PACKOUT landing candidate). Store trademark defense campaign (`QT - Search - TM`) owns "red tool store" queries. |
+| last_verified | 2026-07-12 |
 
 ---
 

@@ -1,5 +1,14 @@
 # Hosting and Centralization Migration Plan
 
+> **Addendum 2026-07-12 (Adam):** Control Center migration to Railway is GREENLIT as active work.
+> Sequencing per this plan still applies: read-only dashboard can ship first; the commit/stage
+> routes stay LOCAL-ONLY until G5 (real approval gate) and G6 (CSRF) are built. Migration scope:
+> SQLite -> Railway volume or Postgres (decide), launchd service -> Railway service (scheduler.py
+> already runs in-process), secrets -> Railway env vars (service account JSON via env, mirroring
+> the MCP server's GOOGLE_ADS_SERVICE_ACCOUNT_JSON pattern), auth in front of the web UI before
+> ANY exposure (even read-only), alerts unchanged (outbound webhooks). Note this doc predates the
+> 2026-07-07/08 Docker/railway/authz commits and needs a refresh pass against the as-built state.
+
 Goal: get the custom MCP servers and local utility web apps off Adam's laptop and onto a cloud host so the tooling is centralized and reachable by anyone in the company. Two consumption modes confirmed:
 
 1. **MCP clients** (Claude Desktop / claude.ai connectors / Claude Code) reaching the MCP servers as remote connectors.
