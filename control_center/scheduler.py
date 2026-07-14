@@ -1,18 +1,27 @@
 """In-process pull scheduler.
 
-Runs as an asyncio task inside the web app process (launchd keeps that
-process alive, so one KeepAlive covers both serving and pulling). Fires a
-data pull + detector run at the configured local times and fans out alerts
-for any new flags.
+Runs as an asyncio task inside the web app process. Locally, launchd keeps
+that process alive; hosted, the Railway service is always-on. Fires a data
+pull + detector run at the configured operator-local times (CC_TIMEZONE,
+default America/Los_Angeles -- NOT the container clock, which is UTC on
+Railway) and fans out alerts for any new flags.
+
+On a fresh database (first boot on a new volume) it runs the 180-day
+backfill first so the anomaly baselines and sparklines have history,
+mirroring the documented first-run behavior of the local install.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from datetime import datetime, time, timedelta
 
+from control_center.clock import now_local
+
 PULL_TIMES = (time(7, 0), time(12, 30), time(17, 30))
+BACKFILL_DAYS = int(os.environ.get("CC_BACKFILL_DAYS", "180"))
 
 
 def _seconds_until_next_pull(now: datetime) -> float:
@@ -48,9 +57,35 @@ def pull_job() -> None:
         conn.close()
 
 
+def _backfill_if_empty() -> None:
+    """First boot on an empty DB: load history so detectors have baselines."""
+    from ads_mcp.client import get_client
+    from control_center import store
+    from control_center.detectors import run_detectors
+
+    conn = store.connect()
+    try:
+        has_rows = conn.execute("SELECT 1 FROM daily_metrics LIMIT 1").fetchone()
+        if has_rows:
+            return
+        print(
+            f"[control_center.scheduler] empty database; running {BACKFILL_DAYS}-day backfill",
+            file=sys.stderr,
+        )
+        store.run_data_pull(conn, get_client(), days=BACKFILL_DAYS, kind="backfill")
+        run_detectors(conn)
+    finally:
+        conn.close()
+
+
 async def scheduler_loop() -> None:
+    try:
+        await asyncio.to_thread(_backfill_if_empty)
+    except Exception as exc:
+        print(f"[control_center.scheduler] startup backfill failed: {exc}", file=sys.stderr)
+
     while True:
-        wait = _seconds_until_next_pull(datetime.now())
+        wait = _seconds_until_next_pull(now_local())
         print(
             f"[control_center.scheduler] next pull in {wait / 3600:.1f}h",
             file=sys.stderr,

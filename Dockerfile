@@ -34,9 +34,12 @@ COPY CAMPAIGN_CREATION_BEST_PRACTICES.md ASSET_CREATION_SKILL.md \
 # DCR client store). Railway mounts it root-owned, so the entrypoint chowns it
 # and drops to the app user — the server process itself never runs as root.
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod 755 /entrypoint.sh && mkdir -p /data && chown -R app:app /data
+COPY serve.sh /serve.sh
+RUN chmod 755 /entrypoint.sh /serve.sh && mkdir -p /data && chown -R app:app /data
 
 ENV PYTHONUNBUFFERED=1
 # PORT is injected by Railway; server.py selects HTTP transport when it is set.
+# SERVICE_ROLE picks the process for shared-image services (see serve.sh):
+# unset = googleads-mcp MCP server, "control-center" = the web dashboard.
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uv", "run", "--frozen", "--no-sync", "python", "-m", "mcp_server.server"]
+CMD ["/serve.sh"]

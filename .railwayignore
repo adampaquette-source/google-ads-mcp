@@ -1,0 +1,18 @@
+# Belt-and-braces for `railway up` (CLI deploys upload the directory as the
+# build context). Secrets and local state must never leave this machine even
+# though .dockerignore already keeps them out of the image.
+.env
+.env.*
+credentials/
+Credentials/
+shopify_mcp/
+*.db
+*.log
+campaign_assets/
+creation_proposals/
+proposals/
+.venv/
+__pycache__/
+.git/
+.claude/
+.codex/

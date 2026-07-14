@@ -17,7 +17,9 @@
       </a>
     </li>
   </ul>
+  {% if not read_only %}
   <form method="post" action="/negatives/run" class="m-0 d-flex gap-2 align-items-center">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
     <select name="date_range" class="form-select form-select-sm" style="width:auto">
       <option value="LAST_30_DAYS">Last 30 days</option>
       <option value="LAST_14_DAYS">Last 14 days</option>
@@ -25,6 +27,7 @@
     </select>
     <button class="btn btn-sm btn-ghost-secondary" title="Pulls search terms for all accounts and rebuilds proposals; can take a couple of minutes">Run audit (all accounts)</button>
   </form>
+  {% endif %}
 </div>
 
 {% if not account_index %}
@@ -73,9 +76,10 @@
       <span class="fw-bold me-2">{{ tr.rows | length }}</span>
       <span class="text-secondary small">term(s), ${{ '{:,.2f}'.format(tr.spend) }} rolled-up spend</span>
     </summary>
-    {% if show != 'approved' %}
+    {% if show != 'approved' and not read_only %}
     <div class="px-3 py-2">
       <form method="post" action="/negatives/approve_tranche" class="m-0">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
         <input type="hidden" name="customer_id" value="{{ detail.customer_id }}">
         <input type="hidden" name="tranche" value="{{ tr.tranche }}">
         <button class="btn btn-sm btn-outline-success">Approve all {{ tr.rows | length }} in this category</button>
@@ -111,7 +115,9 @@
           {% if p.l_conversions and p.l_conversions > 0 %} &middot; ROAS {{ p.l_roas_pct }}%{% endif %}
         </td>
         <td>
-          {% if p.status == 'approved' %}
+          {% if read_only %}
+          <span class="badge {% if p.status == 'approved' %}bg-green-lt{% else %}bg-secondary-lt{% endif %}">{{ p.status }}</span>
+          {% elif p.status == 'approved' %}
           <div id="neg-actions-{{ p.id }}" class="btn-list flex-nowrap">
             <span class="badge bg-green-lt">Approved</span>
             <button class="btn btn-sm btn-ghost-secondary px-2" hx-post="/negatives/{{ p.id }}/open"
@@ -140,11 +146,16 @@
   {% if detail.approved_count %}
   <div class="card-footer py-2 d-flex align-items-center gap-3">
     <strong>{{ detail.approved_count }} approved for this account.</strong>
+    {% if read_only %}
+    <span class="text-secondary small">Commits happen on the local control center until the approval gate ships.</span>
+    {% else %}
     <form method="post" action="/negatives/commit" class="m-0"
           onsubmit="return confirm('Add {{ detail.approved_count }} negative(s) to the shared list for {{ detail.name }} and attach it to eligible campaigns?');">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <input type="hidden" name="customer_id" value="{{ detail.customer_id }}">
       <button class="btn btn-primary btn-sm">Commit approved to Google Ads</button>
     </form>
+    {% endif %}
   </div>
   {% endif %}
 </div>

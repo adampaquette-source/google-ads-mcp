@@ -31,9 +31,12 @@
       <td>{{ '%+.1f' % (s.new_value - (s.current_value or 0)) }}</td>
       <td>{% if s.cooldown_override %}<span class="badge bg-red-lt">cooldown override</span>{% endif %}</td>
       <td>
+        {% if not read_only %}
         <form method="post" action="/staged/{{ s.id }}/discard" class="m-0">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
           <button class="btn btn-sm btn-ghost-secondary">Discard</button>
         </form>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}
@@ -42,14 +45,22 @@
   </div>
 </div>
 
+{% if read_only %}
+<div class="alert alert-warning">
+  This hosted dashboard is view only. Staging and committing Google Ads changes
+  happen on the local control center until the approval gate ships.
+</div>
+{% else %}
 <form method="post" action="/commit"
       onsubmit="return confirm('Commit {{ staged | length }} change(s) to Google Ads?')">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
   <button class="btn btn-primary">Commit {{ staged | length }} change(s) to Google Ads</button>
 </form>
 <p class="text-secondary small mt-2">
   Every change is audit logged before and after the API call, and appended to the
   shared tROAS / Budget Log tabs so audit cooldowns stay in sync.
 </p>
+{% endif %}
 {% endif %}
 
 {% endblock %}
