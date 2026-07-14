@@ -9,8 +9,9 @@ step (see app.py /negatives/commit and ads_mcp/proposals/negatives.py).
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional
+
+from control_center.clock import now_local
 
 from google.ads.googleads.client import GoogleAdsClient
 
@@ -57,7 +58,7 @@ def run_waste_audit(
     )
     proposals = result["proposals"]
 
-    audit_run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    audit_run_id = now_local().strftime("%Y%m%d-%H%M%S")
     inserted = store.refresh_negative_proposals(conn, proposals, audit_run_id)
 
     return {

@@ -1,8 +1,17 @@
 """Ads Control Center web app.
 
-Local-only Starlette app (binds 127.0.0.1) serving the flag review queue.
+Runs in two modes:
+
+- Local (no PORT env var): binds 127.0.0.1, no auth, full read/write --
+  exactly the original launchd deployment. This remains the ONLY surface
+  that can stage or commit Google Ads changes.
+- Hosted (PORT set, Railway): binds 0.0.0.0 behind Google OAuth
+  (control_center/webauth.py), and is READ-ONLY -- every POST except
+  /pull is rejected until the G5 approval gate and G6 CSRF work land.
+  See HOSTING_MIGRATION_PLAN.md Section 4.
+
 Sync endpoints run in the threadpool; each request opens its own SQLite
-connection. All writes to Google Ads go through commit_staged_changes which
+connection. All writes to Google Ads go through the commit path which
 audit-logs before and after every mutate call and appends to the Sheets
 tROAS / Budget Log tabs so the existing audit flows share cooldown state.
 """
@@ -13,18 +22,19 @@ import json
 import os
 import sqlite3
 import sys
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from control_center import store
+from control_center import store, webauth
+from control_center.clock import now_local, today_local
 from control_center.detectors import run_detectors
 from control_center.shopify import load_store_registry
 
@@ -66,7 +76,19 @@ _TRANCHE_META = {
 _TRANCHE_DISPLAY_ORDER = list(_TRANCHE_META.keys())
 
 
-def _render(name: str, **ctx) -> HTMLResponse:
+def _render(name: str, request: Request | None = None, **ctx) -> HTMLResponse:
+    # Auth/gating context set by WebAuthMiddleware; safe defaults for
+    # fragment renders that have no request in scope.
+    if request is not None:
+        ctx.setdefault("read_only", getattr(request.state, "read_only", False))
+        ctx.setdefault("actor_email", getattr(request.state, "actor_email", ""))
+        ctx.setdefault("actor_role", getattr(request.state, "actor_role", "admin"))
+        ctx.setdefault("csrf_token", getattr(request.state, "csrf_token", ""))
+    else:
+        ctx.setdefault("read_only", webauth.hosted_mode())
+        ctx.setdefault("actor_email", "")
+        ctx.setdefault("actor_role", "admin")
+        ctx.setdefault("csrf_token", "")
     return HTMLResponse(templates.get_template(name).render(**ctx))
 
 
@@ -88,8 +110,8 @@ def shopify_key_by_customer() -> dict[str, str]:
 
 def mer_by_account(conn: sqlite3.Connection) -> dict[str, dict]:
     """Trailing 7 full days MER per account from local tables."""
-    start = (date.today() - timedelta(days=7)).isoformat()
-    end = (date.today() - timedelta(days=1)).isoformat()
+    start = (today_local() - timedelta(days=7)).isoformat()
+    end = (today_local() - timedelta(days=1)).isoformat()
     cost_rows = {
         r["customer_id"]: r["cost"]
         for r in conn.execute(
@@ -295,6 +317,7 @@ def queue(request: Request):
         ).fetchone()
         return _render(
             "queue.html",
+            request=request,
             accounts=accounts,
             total_flags=len(flags),
             staged_count=staged_count,
@@ -321,7 +344,7 @@ def flag_detail(request: Request):
         roas = [
             (r["conv_value"] / r["cost"] * 100) if r["cost"] > 0 else None for r in series
         ]
-        l7 = [r for r in series if r["date"] >= (date.today() - timedelta(days=7)).isoformat()]
+        l7 = [r for r in series if r["date"] >= (today_local() - timedelta(days=7)).isoformat()]
         l30_cost = sum(costs)
         l30_value = sum(r["conv_value"] for r in series)
         l7_cost = sum(r["cost"] for r in l7)
@@ -334,6 +357,7 @@ def flag_detail(request: Request):
         ).fetchall()
         return _render(
             "detail.html",
+            request=request,
             flag=dict(row),
             payload=payload,
             spark_cost=sparkline(costs, width=320, height=44),
@@ -353,7 +377,7 @@ def snooze(request: Request):
     days = int(request.query_params.get("days", "1"))
     if days not in (1, 3, 7):
         days = 1
-    until = (datetime.now() + timedelta(days=days)).isoformat(timespec="seconds")
+    until = (now_local() + timedelta(days=days)).isoformat(timespec="seconds")
     conn = _conn()
     try:
         with conn:
@@ -374,7 +398,7 @@ def snooze(request: Request):
 
 def _troas_cooldown_hit(conn: sqlite3.Connection, customer_id: str, campaign_id: str) -> str:
     """Non-empty reason string when the campaign had a tROAS change in the window."""
-    cutoff = (datetime.now() - timedelta(days=TROAS_COOLDOWN_DAYS)).isoformat(timespec="seconds")
+    cutoff = (now_local() - timedelta(days=TROAS_COOLDOWN_DAYS)).isoformat(timespec="seconds")
     local = conn.execute(
         "SELECT created_at FROM staged_changes WHERE customer_id=? AND campaign_id=? "
         "AND change_type='troas' AND status='committed' AND created_at >= ?",
@@ -433,6 +457,7 @@ async def stage(request: Request):
             if reason and not override:
                 return _render(
                     "cooldown_warning.html",
+                    request=request,
                     flag_id=flag_id,
                     new_value=new_value,
                     ad_group_id=ad_group_id,
@@ -460,7 +485,7 @@ async def stage(request: Request):
                     current,
                     new_value,
                     1 if override else 0,
-                    datetime.now().isoformat(timespec="seconds"),
+                    now_local().isoformat(timespec="seconds"),
                 ),
             )
         unit = "%" if change_type.startswith("troas") else "/day $"
@@ -502,7 +527,7 @@ def review(request: Request):
             d = dict(r)
             d["account_name"] = names.get(r["customer_id"], r["customer_id"])
             staged.append(d)
-        return _render("review.html", staged=staged)
+        return _render("review.html", request=request, staged=staged)
     finally:
         conn.close()
 
@@ -565,7 +590,7 @@ def commit(request: Request):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'attempting')
                 """,
                 (
-                    datetime.now().isoformat(timespec="seconds"),
+                    now_local().isoformat(timespec="seconds"),
                     r["customer_id"], r["campaign_id"], r["campaign_name"],
                     r["change_type"], r["current_value"], r["new_value"],
                     r["id"], r["flag_id"], r["cooldown_override"],
@@ -609,7 +634,7 @@ def commit(request: Request):
                             else "LOOSEN"
                         )
                     troas_log_rows.append({
-                        "applied_date": date.today().isoformat(),
+                        "applied_date": today_local().isoformat(),
                         "customer_id": r["customer_id"],
                         "campaign_id": r["campaign_id"],
                         "campaign_name": r["campaign_name"],
@@ -641,7 +666,7 @@ def commit(request: Request):
                 if ok:
                     change = (r["new_value"] or 0) - (r["current_value"] or 0)
                     budget_log_rows.append({
-                        "applied_date": date.today().isoformat(),
+                        "applied_date": today_local().isoformat(),
                         "customer_id": r["customer_id"],
                         "campaign_id": r["campaign_id"],
                         "campaign_name": r["campaign_name"],
@@ -658,7 +683,7 @@ def commit(request: Request):
             audit.execute(
                 "UPDATE control_center_change_log SET ts_after=?, status=?, error=? WHERE id=?",
                 (
-                    datetime.now().isoformat(timespec="seconds"),
+                    now_local().isoformat(timespec="seconds"),
                     "applied" if ok else "error",
                     error,
                     audit_id,
@@ -704,7 +729,7 @@ def commit(request: Request):
             except Exception as exc:
                 sheet_errors.append(f"Budget Log append failed: {exc}")
 
-        return _render("commit_results.html", results=results, sheet_errors=sheet_errors)
+        return _render("commit_results.html", request=request, results=results, sheet_errors=sheet_errors)
     finally:
         audit.close()
         conn.close()
@@ -727,7 +752,7 @@ def history(request: Request):
         names = account_names()
         for c in changes:
             c["account_name"] = names.get(c["customer_id"], c["customer_id"])
-        return _render("history.html", pulls=pulls, changes=changes)
+        return _render("history.html", request=request, pulls=pulls, changes=changes)
     finally:
         conn.close()
 
@@ -849,6 +874,7 @@ def negatives(request: Request):
         ).fetchone()
         return _render(
             "negatives.html",
+            request=request,
             account_index=account_index,
             detail=detail,
             selected=selected,
@@ -972,7 +998,7 @@ async def commit_negatives(request: Request):
                 VALUES (?, ?, '', ?, 'negative_keywords', NULL, ?, 'attempting')
                 """,
                 (
-                    datetime.now().isoformat(timespec="seconds"),
+                    now_local().isoformat(timespec="seconds"),
                     cid, DEFAULT_LIST_NAME, float(len(keywords)),
                 ),
             )
@@ -998,7 +1024,7 @@ async def commit_negatives(request: Request):
             audit.execute(
                 "UPDATE control_center_change_log SET ts_after=?, status=?, error=? WHERE id=?",
                 (
-                    datetime.now().isoformat(timespec="seconds"),
+                    now_local().isoformat(timespec="seconds"),
                     "applied" if ok else "error",
                     top_error or (f"{res['errors']} keyword errors" if res["errors"] else ""),
                     audit_id,
@@ -1017,13 +1043,18 @@ async def commit_negatives(request: Request):
                 "error": top_error,
             })
 
-        return _render("negatives_commit.html", results=results)
+        return _render("negatives_commit.html", request=request, results=results)
     finally:
         audit.close()
         conn.close()
 
 
 import contextlib
+
+
+def health(request: Request):
+    # Unauthenticated liveness probe for Railway health checks; no account data.
+    return PlainTextResponse("ok")
 
 
 @contextlib.asynccontextmanager
@@ -1039,8 +1070,16 @@ async def _lifespan(app):
         task.cancel()
 
 
+# Fail-closed: hosted mode refuses to start without complete auth config.
+webauth.validate_config()
+
 routes = [
     Route("/", queue),
+    Route("/health", health),
+    Route("/login", webauth.login),
+    Route("/logout", webauth.logout),
+    Route("/auth/start", webauth.auth_start),
+    Route("/auth/callback", webauth.auth_callback),
     Route("/flags/{flag_id:int}/detail", flag_detail),
     Route("/flags/{flag_id:int}/snooze", snooze, methods=["POST"]),
     Route("/flags/{flag_id:int}/stage", stage, methods=["POST"]),
@@ -1058,9 +1097,22 @@ routes = [
 ]
 
 app = Starlette(routes=routes, lifespan=_lifespan)
+app = webauth.WebAuthMiddleware(app)
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8770)
+    port = os.environ.get("PORT")
+    if port:
+        # Hosted mode (Railway). TLS terminates at the platform edge, so the
+        # proxy headers are what make session cookies Secure-safe.
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=int(port),
+            proxy_headers=True,
+            forwarded_allow_ips="*",
+        )
+    else:
+        uvicorn.run(app, host="127.0.0.1", port=8770)

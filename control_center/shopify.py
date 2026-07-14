@@ -35,6 +35,9 @@ TOKEN_REFRESH_BUFFER = 300  # refresh 5 minutes before expiry
 
 _ENV_LINE_RE = re.compile(r"^SHOPIFY_(?P<slug>[A-Z0-9_]+)_MCP_CLIENT_(?P<kind>ID|SECRET)=(?P<value>.+)$")
 
+# Stores already warned about missing credentials (once per process, not per request).
+_warned_credless: set[str] = set()
+
 
 @dataclass(frozen=True)
 class StoreCreds:
@@ -47,19 +50,36 @@ class StoreCreds:
     client_secret: str
 
 
+def _read_creds_source(env_path: Path) -> str:
+    """Credential blocks come from the SHOPIFY_MCP_ENV variable (hosted: the
+    file contents pasted into a platform secret, mirroring the
+    GOOGLE_ADS_SERVICE_ACCOUNT_JSON pattern) or from shopify_mcp/.env (local).
+    Missing both is fine: the registry still loads, sales pulls are skipped.
+    """
+    import os
+
+    inline = os.environ.get("SHOPIFY_MCP_ENV", "")
+    if inline.strip():
+        return inline
+    if env_path.exists():
+        return env_path.read_text()
+    return ""
+
+
 def load_store_registry(
     env_path: Path = SHOPIFY_ENV_PATH,
     mapping_path: Path = STORES_MAPPING_PATH,
 ) -> list[StoreCreds]:
-    """Join stores_mapping.json with the credential blocks in shopify_mcp/.env.
+    """Join stores_mapping.json with the per-store Shopify credential blocks.
 
     stores_mapping.json carries env_slug per store, which matches the
-    SHOPIFY_<SLUG>_MCP_CLIENT_ID / _CLIENT_SECRET variable names in the env
-    file. Stores missing credentials are skipped with a stderr note rather
-    than failing the whole registry.
+    SHOPIFY_<SLUG>_MCP_CLIENT_ID / _CLIENT_SECRET variable names in the
+    credential source. Stores missing credentials stay in the registry with
+    empty creds (their ads account is still scanned; only the net-sales pull
+    is skipped) so ads coverage never depends on Shopify credential presence.
     """
     creds_by_slug: dict[str, dict[str, str]] = {}
-    for line in env_path.read_text().splitlines():
+    for line in _read_creds_source(env_path).splitlines():
         match = _ENV_LINE_RE.match(line.strip())
         if not match:
             continue
@@ -70,17 +90,18 @@ def load_store_registry(
     mapping = json.loads(mapping_path.read_text())
     registry: list[StoreCreds] = []
     for store in mapping["stores"]:
-        slug = store["env_slug"]
-        creds = creds_by_slug.get(slug)
-        if not creds or "id" not in creds or "secret" not in creds:
+        creds = creds_by_slug.get(store["env_slug"], {})
+        if ("id" not in creds or "secret" not in creds) and store[
+            "shopify_key"
+        ] not in _warned_credless:
             import sys
 
+            _warned_credless.add(store["shopify_key"])
             print(
                 f"[control_center.shopify] no credentials for {store['shopify_key']} "
-                f"(env slug {slug}); store skipped",
+                f"(env slug {store['env_slug']}); net-sales pull skipped for this store",
                 file=sys.stderr,
             )
-            continue
         registry.append(
             StoreCreds(
                 shopify_key=store["shopify_key"],
@@ -88,8 +109,8 @@ def load_store_registry(
                 ads_customer_id=store["ads_customer_id"],
                 ads_name=store["ads_name"],
                 ads_status=store["ads_status"],
-                client_id=creds["id"],
-                client_secret=creds["secret"],
+                client_id=creds.get("id", ""),
+                client_secret=creds.get("secret", ""),
             )
         )
     return registry
@@ -215,6 +236,7 @@ async def fetch_all_store_sales(
 
     if registry is None:
         registry = load_store_registry()
+    registry = [c for c in registry if c.client_id and c.client_secret]
     semaphore = asyncio.Semaphore(concurrency)
     results: dict[str, dict[str, float]] = {}
 

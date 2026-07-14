@@ -13,9 +13,11 @@ import os
 import sqlite3
 import sys
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterable, Optional
+
+from control_center.clock import now_local, today_local
 
 from google.ads.googleads.client import GoogleAdsClient
 
@@ -254,7 +256,7 @@ def fetch_daily_campaign_metrics(
 
 
 def upsert_daily_metrics(conn: sqlite3.Connection, rows: Iterable[DailyMetricRow]) -> int:
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     count = 0
     with conn:
         for row in rows:
@@ -322,7 +324,7 @@ def fetch_adgroup_troas(client: GoogleAdsClient, customer_id: str) -> list[dict]
                 }
         return rows
 
-    today = date.today()
+    today = today_local()
     prior_range = {
         "start_date": (today - timedelta(days=14)).isoformat(),
         "end_date": (today - timedelta(days=8)).isoformat(),
@@ -349,7 +351,7 @@ def fetch_adgroup_troas(client: GoogleAdsClient, customer_id: str) -> list[dict]
 def replace_adgroup_troas(
     conn: sqlite3.Connection, customer_id: str, rows: list[dict]
 ) -> None:
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     with conn:
         conn.execute("DELETE FROM adgroup_troas WHERE customer_id=?", (customer_id,))
         conn.executemany(
@@ -367,7 +369,7 @@ def replace_adgroup_troas(
 def upsert_store_sales(
     conn: sqlite3.Connection, sales_by_store: dict[str, dict[str, float]]
 ) -> int:
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     count = 0
     with conn:
         for shopify_key, daily in sales_by_store.items():
@@ -393,7 +395,7 @@ def start_pull(conn: sqlite3.Connection, kind: str) -> int:
     with conn:
         cur = conn.execute(
             "INSERT INTO pulls (kind, started_at) VALUES (?, ?)",
-            (kind, datetime.now().isoformat(timespec="seconds")),
+            (kind, now_local().isoformat(timespec="seconds")),
         )
     return cur.lastrowid
 
@@ -415,7 +417,7 @@ def finish_pull(
             WHERE id=?
             """,
             (
-                datetime.now().isoformat(timespec="seconds"),
+                now_local().isoformat(timespec="seconds"),
                 accounts_scanned,
                 stores_scanned,
                 new_flags,
@@ -441,7 +443,7 @@ def ads_accounts() -> list[dict]:
 
 
 def pull_window(days: int, end: Optional[date] = None) -> tuple[date, date]:
-    end = end or date.today()
+    end = end or today_local()
     return end - timedelta(days=days - 1), end
 
 
@@ -527,7 +529,7 @@ def refresh_negative_proposals(
     preserved (a decided term is never re-proposed). Returns rows inserted.
     """
     proposals = list(proposals)
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     audited = {str(p["customer_id"]) for p in proposals}
 
     for cid in audited:
@@ -633,7 +635,7 @@ def add_protect_term(conn: sqlite3.Connection, customer_id: str, term: str) -> b
     cur = conn.execute(
         "INSERT OR IGNORE INTO negative_protect_terms (customer_id, term, created_at) "
         "VALUES (?, ?, ?)",
-        (str(customer_id), t, datetime.now().isoformat(timespec="seconds")),
+        (str(customer_id), t, now_local().isoformat(timespec="seconds")),
     )
     conn.commit()
     return cur.rowcount > 0
@@ -698,7 +700,7 @@ def mark_negative_committed(
 ) -> None:
     conn.execute(
         "UPDATE negative_proposals SET status=?, result=?, committed_at=? WHERE id=?",
-        (status, result, datetime.now().isoformat(timespec="seconds"), prop_id),
+        (status, result, now_local().isoformat(timespec="seconds"), prop_id),
     )
     conn.commit()
 

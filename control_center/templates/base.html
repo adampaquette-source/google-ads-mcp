@@ -15,7 +15,7 @@
   .metric-sub { font-size: 0.78rem; color: var(--tblr-secondary); font-variant-numeric: tabular-nums; }
 </style>
 </head>
-<body data-bs-theme="dark">
+<body data-bs-theme="dark"{% if csrf_token %} hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% endif %}>
 <header class="navbar navbar-expand-md sticky-top d-print-none" style="z-index: 5">
   <div class="container-xl">
     <h1 class="navbar-brand me-3 mb-0">Ads Control Center</h1>
@@ -34,9 +34,17 @@
       <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
     </ul>
     <span class="text-secondary small me-3">{% block headmeta %}{% endblock %}</span>
-    <form method="post" action="/pull" class="m-0">
+    {% if read_only %}<span class="badge bg-yellow-lt me-3" title="Google Ads writes and queue decisions stay on the local control center until the approval gate ships">View only</span>{% endif %}
+    {% if not read_only or actor_role == 'admin' %}
+    <form method="post" action="/pull" class="m-0 me-2">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <button class="btn btn-sm btn-ghost-secondary" title="Pulls fresh data for all accounts; takes about a minute">Refresh data</button>
     </form>
+    {% endif %}
+    {% if actor_email %}
+    <span class="text-secondary small me-2">{{ actor_email }}</span>
+    <a class="btn btn-sm btn-ghost-secondary" href="/logout">Log out</a>
+    {% endif %}
   </div>
 </header>
 <div class="page-wrapper">

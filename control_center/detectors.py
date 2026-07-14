@@ -19,8 +19,9 @@ import json
 import sqlite3
 import statistics
 import sys
-from datetime import date, datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta
+
+from control_center.clock import now_local, today_local
 
 from typing_extensions import TypedDict
 
@@ -384,7 +385,7 @@ def detect_budget_flags(conn: sqlite3.Connection, tiers: dict[str, int]) -> list
 
 
 def detect_spend_anomaly(conn: sqlite3.Connection, tiers: dict[str, int]) -> list[FlagCandidate]:
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    yesterday = (today_local() - timedelta(days=1)).isoformat()
     weekday = datetime.strptime(yesterday, "%Y-%m-%d").date().weekday()
 
     rows = conn.execute(
@@ -474,7 +475,7 @@ def sync_flags(
     flags with no matching candidate accumulate clean pulls and resolve after
     RESOLVE_AFTER_CLEAN_PULLS.
     """
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_local().isoformat(timespec="seconds")
     new_flags: list[dict] = []
     candidate_keys = set()
 

@@ -2,7 +2,11 @@
 
 Fires after a scheduled pull when new flags appeared. Chat reuses the same
 webhook env vars as the digest; the desktop notification uses osascript so
-there is no extra dependency.
+there is no extra dependency (and is skipped automatically off-macOS).
+
+CC_ALERTS_ENABLED=0 disables the fan-out entirely. Set it on whichever
+instance should stay quiet while both the local launchd service and the
+hosted Railway service are pulling, so Chat is not notified twice per flag.
 """
 
 from __future__ import annotations
@@ -17,7 +21,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DASHBOARD_URL = "http://localhost:8770"
+
+def _dashboard_url() -> str:
+    return os.environ.get("CC_BASE_URL", "").rstrip("/") or "http://localhost:8770"
 
 _TYPE_LABELS = {
     "troas_drift": "tROAS drift",
@@ -56,7 +62,7 @@ def post_chat_alert(new_flags: list[dict]) -> bool:
         )
     if len(new_flags) > 5:
         lines.append(f"...and {len(new_flags) - 5} more.")
-    lines.append(f"Review queue: {DASHBOARD_URL}")
+    lines.append(f"Review queue: {_dashboard_url()}")
 
     body = json.dumps({"text": "\n".join(lines)}).encode()
     request = urllib.request.Request(
@@ -71,7 +77,7 @@ def post_chat_alert(new_flags: list[dict]) -> bool:
 
 
 def post_desktop_alert(new_flags: list[dict]) -> bool:
-    if not new_flags:
+    if not new_flags or sys.platform != "darwin":
         return False
     title = f"Ads Control Center: {len(new_flags)} new flags"
     body = _summarize(new_flags)
@@ -88,6 +94,13 @@ def post_desktop_alert(new_flags: list[dict]) -> bool:
 
 def send_alerts(new_flags: list[dict]) -> None:
     if not new_flags:
+        return
+    if os.environ.get("CC_ALERTS_ENABLED", "1") == "0":
+        print(
+            f"[control_center.alerts] {len(new_flags)} new flags; alerts disabled "
+            "(CC_ALERTS_ENABLED=0)",
+            file=sys.stderr,
+        )
         return
     post_chat_alert(new_flags)
     post_desktop_alert(new_flags)
