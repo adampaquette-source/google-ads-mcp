@@ -1,6 +1,6 @@
 # Ads Control Center -- Requirements and Architecture Spec
 
-Status: v1 BUILT and running 2026-06-09. launchd service `com.toolup.ads-control-center`, dashboard at http://localhost:8770. Hosted read-only mode built 2026-07-14 (see Hosted mode section).
+Status: v1 BUILT and running 2026-06-09. launchd service `com.toolup.ads-control-center`, dashboard at http://localhost:8770.
 This is the working spec for the local command and control center. It supersedes nothing; it builds on top of `ads_mcp/` and runs beside the MCP server.
 
 ## Operations (how it runs)
@@ -12,50 +12,6 @@ This is the working spec for the local command and control center. It supersedes
 - Stop: `launchctl bootout gui/$(id -u)/com.toolup.ads-control-center`. Start: re-run the installer.
 - Cooldown sharing: control center commits append to the Sheets tROAS Log / Budget Log tabs, and stage-time cooldown checks read the same tROAS Log, so the M/W/F audit flow and the control center cannot stack changes on each other inside the 3-day window.
 - Alert webhook: uses `GOOGLE_ADS_CC_WEBHOOK_URL` if set, else falls back to `GOOGLE_CHAT_WEBHOOK_URL`.
-
-## Hosted mode (Railway, added 2026-07-14)
-
-The app now has two run modes, selected by the `PORT` env var (Railway sets it).
-Local mode is byte-for-byte the pre-hosting behavior. Hosted mode is the Phase 1
-read-only deployment from `HOSTING_MIGRATION_PLAN.md`: browser users reach the
-dashboards through Google sign-in, and nothing can mutate an account.
-
-- **View-only is forced, not configured.** In hosted mode `ReadOnlyMiddleware`
-  (`control_center/webauth.py`) rejects every non-GET request with 403 before
-  auth even runs. Commits, staging, snoozes, and manual pulls stay LOCAL-ONLY
-  until gate G5 (real approval gate) and G6 (CSRF) are built. There is no env
-  var to turn writes on remotely; enabling them is a code change gated on G5/G6.
-- **Auth:** in-app Google OAuth session login (`control_center/webauth.py`),
-  reusing the same Google OAuth client as the MCP connectors (decision
-  2026-07-14, supersedes the plan's original Cloudflare Access choice). Session
-  is an HMAC-signed 24h cookie; the email role map is re-checked on every
-  request, so removing an email from `ADS_CC_ROLE_MAP` revokes access
-  immediately. Default-deny: unmapped emails get 403. Fail-closed: hosted mode
-  refuses to start without complete auth config (`ADS_CC_ALLOW_NO_AUTH=1` only
-  for a platform-private service with no domain).
-- **DB:** SQLite on the Railway volume (`ADS_CC_DB_PATH=/data/control_center.db`).
-  Postgres was considered and rejected: single writer, existing schema, volume
-  survives redeploys. The hosted DB starts empty and fills from scheduled pulls;
-  it is a separate copy from the laptop DB, not a sync.
-- **Scheduler:** runs in-process as always; `ADS_CC_SCHEDULER=0` disables it on
-  whichever instance is NOT the system of record so hosted + local never
-  double-alert. Once the hosted instance is verified, set `ADS_CC_SCHEDULER=0`
-  (or unset the webhook) on the laptop instance. Container needs
-  `TZ=America/Los_Angeles` (tzdata is baked into the image) because pull times
-  and cooldown math use naive local time.
-- **Shopify creds:** `shopify_mcp/.env` does not ship in the image; hosted mode
-  reads the same `SHOPIFY_<SLUG>_MCP_CLIENT_ID/_SECRET` variables from process
-  env (paste the env-file block into Railway raw editor; every value is
-  single-line so the multiline-truncation gotcha does not apply).
-- **Hosted env vars** (beyond the standard Google Ads set):
-  `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `ADS_CC_BASE_URL`,
-  `ADS_CC_SESSION_SECRET` (fresh per service), `ADS_CC_ROLE_MAP` (JSON email ->
-  admin|viewer), `ADS_CC_DB_PATH`, `ADS_CC_DASHBOARD_URL` (alert links),
-  `ADS_CC_SCHEDULER`, `TZ`. Start command:
-  `uv run --frozen --no-sync python -m control_center.app`; healthcheck `/health`.
-- **Role map ops:** add/remove a user by editing `ADS_CC_ROLE_MAP` on the
-  Railway service and redeploying. Ask which role; never assume admin. Roles are
-  recorded now so G5 can bind commit rights to them later.
 
 ## Problem statement
 

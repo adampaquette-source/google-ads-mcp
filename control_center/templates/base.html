@@ -34,14 +34,9 @@
       <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
     </ul>
     <span class="text-secondary small me-3">{% block headmeta %}{% endblock %}</span>
-    {% if cc_hosted_read_only %}
-    <span class="badge bg-yellow-lt me-3" title="Commits, staging, snoozes, and manual pulls run on the local instance only">View only</span>
-    <a class="btn btn-sm btn-ghost-secondary" href="/auth/logout">Sign out</a>
-    {% else %}
     <form method="post" action="/pull" class="m-0">
       <button class="btn btn-sm btn-ghost-secondary" title="Pulls fresh data for all accounts; takes about a minute">Refresh data</button>
     </form>
-    {% endif %}
   </div>
 </header>
 <div class="page-wrapper">

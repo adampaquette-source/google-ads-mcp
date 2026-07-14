@@ -5,13 +5,6 @@ FROM python:3.11-slim
 # Pinned uv, copied from the official distroless image (no pip supply chain).
 COPY --from=ghcr.io/astral-sh/uv:0.11.15 /uv /usr/local/bin/uv
 
-# tzdata so TZ=America/Los_Angeles (set in Railway variables) makes naive
-# datetime.now() Pacific: the control center scheduler pull times and tROAS
-# cooldown math assume local Pacific time (HOSTING_MIGRATION_PLAN.md §7.1).
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN useradd --create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 

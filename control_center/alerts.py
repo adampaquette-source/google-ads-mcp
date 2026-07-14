@@ -17,9 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Hosted mode sets ADS_CC_DASHBOARD_URL to the public https URL so alert
-# links open the hosted dashboard instead of localhost.
-DASHBOARD_URL = os.environ.get("ADS_CC_DASHBOARD_URL", "").strip() or "http://localhost:8770"
+DASHBOARD_URL = "http://localhost:8770"
 
 _TYPE_LABELS = {
     "troas_drift": "tROAS drift",
@@ -73,7 +71,7 @@ def post_chat_alert(new_flags: list[dict]) -> bool:
 
 
 def post_desktop_alert(new_flags: list[dict]) -> bool:
-    if not new_flags or sys.platform != "darwin":
+    if not new_flags:
         return False
     title = f"Ads Control Center: {len(new_flags)} new flags"
     body = _summarize(new_flags)
