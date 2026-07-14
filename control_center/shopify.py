@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -51,15 +52,22 @@ def load_store_registry(
     env_path: Path = SHOPIFY_ENV_PATH,
     mapping_path: Path = STORES_MAPPING_PATH,
 ) -> list[StoreCreds]:
-    """Join stores_mapping.json with the credential blocks in shopify_mcp/.env.
+    """Join stores_mapping.json with the SHOPIFY_<SLUG>_MCP_CLIENT_* credentials.
 
     stores_mapping.json carries env_slug per store, which matches the
-    SHOPIFY_<SLUG>_MCP_CLIENT_ID / _CLIENT_SECRET variable names in the env
-    file. Stores missing credentials are skipped with a stderr note rather
-    than failing the whole registry.
+    SHOPIFY_<SLUG>_MCP_CLIENT_ID / _CLIENT_SECRET variable names. Credentials
+    come from shopify_mcp/.env when it exists (local mode) and from process
+    env vars otherwise (hosted mode: shopify_mcp/ is dockerignored, so the
+    same variables are pasted into Railway instead; process env wins on
+    conflict). Stores missing credentials are skipped with a stderr note
+    rather than failing the whole registry.
     """
     creds_by_slug: dict[str, dict[str, str]] = {}
-    for line in env_path.read_text().splitlines():
+    env_lines: list[str] = []
+    if env_path.exists():
+        env_lines += env_path.read_text().splitlines()
+    env_lines += [f"{k}={v}" for k, v in os.environ.items() if k.startswith("SHOPIFY_")]
+    for line in env_lines:
         match = _ENV_LINE_RE.match(line.strip())
         if not match:
             continue

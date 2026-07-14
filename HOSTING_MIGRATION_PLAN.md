@@ -1,5 +1,13 @@
 # Hosting and Centralization Migration Plan
 
+> **Progress 2026-07-14:** Control Center hosted read-only mode is BUILT and smoke-tested
+> (see `CONTROL_CENTER_SPEC.md` § Hosted mode). Decisions taken: web UI auth = in-app Google
+> OAuth reusing the connector OAuth client (supersedes the Cloudflare Access choice below;
+> Adam confirmed 2026-07-14); DB = SQLite on the Railway volume, not Postgres. Hosted mode
+> forces view-only in middleware (all non-GET requests 403) with no env override -- G5/G6
+> remain the gate for any remote write. Remaining: create the Railway service, owner pastes
+> secrets, verify, then decide which instance owns the scheduler/alerts.
+>
 > **Addendum 2026-07-12 (Adam):** Control Center migration to Railway is GREENLIT as active work.
 > Sequencing per this plan still applies: read-only dashboard can ship first; the commit/stage
 > routes stay LOCAL-ONLY until G5 (real approval gate) and G6 (CSRF) are built. Migration scope:

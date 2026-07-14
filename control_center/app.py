@@ -1,10 +1,19 @@
 """Ads Control Center web app.
 
-Local-only Starlette app (binds 127.0.0.1) serving the flag review queue.
-Sync endpoints run in the threadpool; each request opens its own SQLite
-connection. All writes to Google Ads go through commit_staged_changes which
-audit-logs before and after every mutate call and appends to the Sheets
-tROAS / Budget Log tabs so the existing audit flows share cooldown state.
+Starlette app serving the flag review queue. Sync endpoints run in the
+threadpool; each request opens its own SQLite connection. All writes to
+Google Ads go through commit_staged_changes which audit-logs before and
+after every mutate call and appends to the Sheets tROAS / Budget Log tabs
+so the existing audit flows share cooldown state.
+
+Two run modes, selected by the PORT env var (Railway sets it):
+
+- Local (no PORT): binds 127.0.0.1:8770, no auth, full write surface.
+  Exactly the pre-hosting behavior.
+- Hosted (PORT set): binds 0.0.0.0:$PORT behind Google OAuth (webauth.py,
+  fail-closed) and is FORCED view-only: every non-GET route returns 403.
+  Commits, staging, snoozes, and manual pulls stay local-only until the
+  real approval gate (G5) and CSRF (G6) ship; see HOSTING_MIGRATION_PLAN.md.
 """
 
 from __future__ import annotations
@@ -30,11 +39,15 @@ from control_center.shopify import load_store_registry
 
 load_dotenv()
 
+# Hosted mode (Railway sets PORT): Google OAuth in front, view-only enforced.
+HOSTED = bool(os.environ.get("PORT"))
+
 HERE = Path(__file__).parent
 templates = Environment(
     loader=FileSystemLoader(HERE / "templates"),
     autoescape=select_autoescape(["html"]),
 )
+templates.globals["cc_hosted_read_only"] = HOSTED
 
 TROAS_COOLDOWN_DAYS = 3
 
@@ -1032,14 +1045,29 @@ async def _lifespan(app):
 
     from control_center.scheduler import scheduler_loop
 
-    task = asyncio.create_task(scheduler_loop())
+    # ADS_CC_SCHEDULER=0 disables the in-process pull scheduler. Use it on
+    # whichever instance is NOT the system of record for pulls and alerts,
+    # so hosted and local never double-alert the same flags.
+    task = None
+    if os.environ.get("ADS_CC_SCHEDULER", "1") != "0":
+        task = asyncio.create_task(scheduler_loop())
+    else:
+        print("[control_center] scheduler disabled (ADS_CC_SCHEDULER=0)", file=sys.stderr)
     try:
         yield
     finally:
-        task.cancel()
+        if task is not None:
+            task.cancel()
+
+
+async def health(request: Request):
+    from starlette.responses import PlainTextResponse
+
+    return PlainTextResponse("ok")
 
 
 routes = [
+    Route("/health", health),
     Route("/", queue),
     Route("/flags/{flag_id:int}/detail", flag_detail),
     Route("/flags/{flag_id:int}/snooze", snooze, methods=["POST"]),
@@ -1057,10 +1085,47 @@ routes = [
     Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
 ]
 
-app = Starlette(routes=routes, lifespan=_lifespan)
+middleware = []
+if HOSTED:
+    from starlette.middleware import Middleware
+
+    from control_center.webauth import (
+        ReadOnlyMiddleware,
+        SessionAuthMiddleware,
+        build_web_auth,
+        make_auth_routes,
+    )
+
+    # Fail-closed: raises unless auth config is complete (webauth.build_web_auth).
+    _auth_config = build_web_auth()
+    if _auth_config is not None:
+        _login, _callback, _logout = make_auth_routes(_auth_config)
+        routes += [
+            Route("/auth/login", _login),
+            Route("/auth/callback", _callback),
+            Route("/auth/logout", _logout),
+        ]
+        middleware.append(Middleware(SessionAuthMiddleware, config=_auth_config))
+    # View-only is unconditional in hosted mode, auth or not: writes stay
+    # local-only until G5 (approval gate) and G6 (CSRF) exist.
+    middleware.insert(0, Middleware(ReadOnlyMiddleware))
+
+app = Starlette(routes=routes, lifespan=_lifespan, middleware=middleware)
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8770)
+    port = os.environ.get("PORT")
+    if port:
+        # Hosted: Railway terminates TLS at its edge, so trust forwarded
+        # headers or the OAuth redirect URIs derive as http and mismatch.
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=int(port),
+            proxy_headers=True,
+            forwarded_allow_ips="*",
+        )
+    else:
+        uvicorn.run(app, host="127.0.0.1", port=8770)
