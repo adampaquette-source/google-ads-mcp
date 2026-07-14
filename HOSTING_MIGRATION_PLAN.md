@@ -1,13 +1,81 @@
 # Hosting and Centralization Migration Plan
 
-> **Addendum 2026-07-12 (Adam):** Control Center migration to Railway is GREENLIT as active work.
-> Sequencing per this plan still applies: read-only dashboard can ship first; the commit/stage
-> routes stay LOCAL-ONLY until G5 (real approval gate) and G6 (CSRF) are built. Migration scope:
-> SQLite -> Railway volume or Postgres (decide), launchd service -> Railway service (scheduler.py
-> already runs in-process), secrets -> Railway env vars (service account JSON via env, mirroring
-> the MCP server's GOOGLE_ADS_SERVICE_ACCOUNT_JSON pattern), auth in front of the web UI before
-> ANY exposure (even read-only), alerts unchanged (outbound webhooks). Note this doc predates the
-> 2026-07-07/08 Docker/railway/authz commits and needs a refresh pass against the as-built state.
+> **Addendum 2026-07-13 (executed):** the Control Center read-only migration greenlit on
+> 2026-07-12 is BUILT and DEPLOYED. See Section 0 (as-built state) for what exists, which
+> gates are satisfied, and the decisions taken (SQLite on a Railway volume, not Postgres;
+> in-app Google OAuth, not Cloudflare Access). The commit/stage routes are hard-disabled in
+> hosted mode -- no env flag can enable them -- until G5 (approval gate, proposal in Section
+> 10) and G6 wiring on the write routes are complete.
+
+---
+
+## 0. As-built state (updated 2026-07-13)
+
+This section supersedes the planning language below where they disagree. Everything here is
+deployed and verified.
+
+### Hosted today (Railway project `toolup-mcp`, PCS Projects workspace)
+
+| Service | What | Auth | Writes? |
+|---|---|---|---|
+| `googleads-mcp` | Google Ads MCP server, Streamable HTTP (dual-mode: stdio locally when PORT unset) | Google OAuth via FastMCP GoogleProvider + `MCP_ROLE_MAP` per-user per-tool grants (default-deny, `MCP_ADMIN_ONLY_TOOLS` fence for `commit_*`) | Gated by role map; commit tools admin-only |
+| `shopify-mcp`, `klaviyo-mcp`, `imagegen-mcp` | Sibling MCP services (separate repo for imagegen) | Same pattern | Per-service allowlists |
+| `ads-control-center` | Control Center web dashboard (this migration), `https://ads-control-center-production.up.railway.app` | In-app Google OAuth (`control_center/webauth.py`) + `CC_ROLE_MAP` (default-deny, admin/viewer) + CSRF + signed sessions | **NO. Read-only: every POST returns 403 except admin `/pull`.** |
+
+### Decisions taken
+
+- **Auth model deviation from the original plan:** the plan called for Cloudflare Access as the
+  single front door with origin lockdown (G1). The as-built MCP hosting (2026-07-07/08) went
+  with per-app Google OAuth directly on the Railway public domain instead, and the control
+  center follows the same pattern for consistency. Consequence: there is no Cloudflare layer;
+  the app IS the front door, so its auth must stay fail-closed (both `mcp_server/authn.py` and
+  `control_center/webauth.py` refuse to start in HTTP mode without complete auth config).
+  G1 is therefore recast: "no unauthenticated surface on the public origin" rather than
+  "origin reachable only via Cloudflare."
+- **SQLite on a Railway volume, not Postgres.** `control_center/store.py` is raw sqlite3 with
+  SQLite-dialect SQL throughout; the app is single-process single-writer; the volume removes
+  the Dropbox-sync corruption risk that dictated the local DB location. Postgres would be a
+  rewrite with no payoff at this scale (~19 accounts, low MB). Revisit only if multiple
+  services ever need to share the DB (see "known seam" below).
+- **Hosted = read-only means read-only for decisions too.** Approve/skip/snooze/stage are
+  local-DB writes, not Google Ads writes, but allowing them hosted would record decisions in a
+  database the local (write-capable) instance never sees -- split-brain approvals. So hosted
+  blocks ALL POSTs except `/pull` (admin-only data refresh). When G5 lands and the hosted
+  instance becomes the operative surface, this flips and the local launchd service retires.
+- **Secrets:** Railway variables. The control center references the `googleads-mcp` service's
+  variables (`${{googleads-mcp.GOOGLE_ADS_SERVICE_ACCOUNT_JSON}}` etc.) so secrets live in
+  exactly one place. Shopify per-store creds arrive as `SHOPIFY_MCP_ENV` (the local
+  `shopify_mcp/.env` file contents pasted into one variable); until set, the dashboard shows
+  "No sales data" for MER and everything else works.
+- **Timezone:** all control-center time math goes through `control_center/clock.py`
+  (`CC_TIMEZONE`, default America/Los_Angeles), fixing the Section 7 risk (pull times,
+  snooze windows, tROAS cooldowns shifting in a UTC container).
+- **Alerts:** `CC_ALERTS_ENABLED=0` on the hosted service for now so Chat is not double-notified
+  while the local launchd service also pulls. Flip when the local service retires.
+
+### Known seam (accepted for now)
+
+There are now up to three control-center SQLite databases: the local Mac one (operative for
+commits), the hosted `ads-control-center` volume (read-only dashboard, fills itself via its own
+backfill + scheduler), and the `googleads-mcp` volume copy used by that service's waste-audit
+MCP tools. They do not sync. The local DB remains the source of truth for decisions until G5.
+This is the strongest argument for Postgres later -- one shared DB for the CC service and the
+MCP service -- and should be part of the G5 build.
+
+### Gate status
+
+| Gate | Status |
+|---|---|
+| G1 origin lockdown | Recast (see above): no Cloudflare; fail-closed in-app OAuth on the public origin. |
+| G2 authn != authz | Done on both surfaces (OAuth authenticates; role maps authorize, default-deny). |
+| G3 authz tier | Done for exposed surfaces: `MCP_ROLE_MAP` (per-tool), `CC_ROLE_MAP` (admin/viewer + read-only gate). |
+| G4 actor attribution | Done for exposed surfaces: JSON-line audit of every MCP tool call and every CC mutating request with actor email. NOT yet threaded into the Google Ads write audit rows (part of G5). |
+| G5 approval gate | NOT BUILT. Proposal in Section 10 awaiting Adam's sign-off. Until then hosted writes are hard-disabled. |
+| G6 CSRF | Built in `webauth.py` and enforced on the one live POST (`/pull`); already wired in templates for the write routes so enabling them later inherits it. |
+| G7 no static MCP tokens | Done (per-user OAuth on all MCP services). |
+| G8 rate limiting | Not built (unchanged risk; hosted CC adds only scheduled pulls + admin manual pull). |
+| G9 supply chain | Partial: `uv sync --frozen` from the reviewed lockfile, pinned uv binary, non-root runtime. No egress restriction, no rotation plan yet. |
+| G10 credential segmentation | Not done: the CC service holds the same full-write service account as the MCP service even though it only reads. A read-only Google Ads login is not offered by the API (access level is per MCC user), so segmentation means G5's write-broker idea, not a weaker credential. |
 
 Goal: get the custom MCP servers and local utility web apps off Adam's laptop and onto a cloud host so the tooling is centralized and reachable by anyone in the company. Two consumption modes confirmed:
 
@@ -119,8 +187,13 @@ Derived from the adversarial review. Nothing write-capable (web or MCP) goes on 
 ### Phase 1 — Read-only surfaces only (the fast "company can reach it" win)
 Exposes the value the plan wants without exposing a path to live mutations. Requires G1, G2, G4.
 1. **MER dashboard**: already behind Cloudflare Access; confirm origin lockdown (G1) and fold into the registry.
-2. **Ads Control Center in view-only mode**: deploy with `/commit`, `/stage`, `/snooze`, `/pull` disabled (or returning 403). Read dashboards only. Move SQLite to a Railway volume; fix the scheduler timezone (Section 6); inject secrets as Railway secrets.
-3. **Read-only reporting MCP tools** (if MCP auth is ready per G7): expose the reporting/health tools, not the commit tools. If MCP per-user auth is not ready, defer all MCP to Phase 2.
+2. **Ads Control Center in view-only mode**: ✅ DONE 2026-07-13 (Section 0). Deployed to Railway
+   as `ads-control-center` behind in-app Google OAuth; all POSTs 403 except admin `/pull`
+   (snooze included, stricter than planned -- see the split-brain rationale in Section 0);
+   SQLite on a Railway volume; scheduler timezone fixed via `control_center/clock.py`;
+   secrets as Railway variables referencing the `googleads-mcp` service.
+3. **Read-only reporting MCP tools**: ✅ effectively done via the hosted `googleads-mcp` role map
+   (viewer grants see only readOnlyHint tools; `MCP_ADMIN_ONLY_TOOLS` fences `commit_*`).
 
 Outcome: browser users across the company reach the dashboards through one SSO, immediately, with no write exposure.
 
@@ -138,7 +211,12 @@ Order, each becoming the template for the next:
 3. **Klaviyo MCP** (persist `rollbacks/` + `audit.log`; add a per-operation allowlist parallel to Shopify's, since the client currently exposes generic `post/patch/delete` guarded only by PII-path blocking).
 
 ### Phase 3 — Control Center write mode + registry
-- Enable the Control Center commit/stage routes only after G5 (real approval gate) and G6 (CSRF) are in place.
+- Enable the Control Center commit/stage routes only after G5 (real approval gate, Section 10
+  proposal) is built. G6 (CSRF) is already implemented and pre-wired into the write-route
+  templates; the write enablement inherits it.
+- Write enablement also includes: retiring the local launchd instance (or demoting it to
+  emergency-only) so there is one decision database; threading actor emails into
+  `control_center_change_log` and the staged/approved rows; flipping `CC_ALERTS_ENABLED`.
 - Publish one internal registry page (Confluence is already connected, or a README) listing each endpoint URL, what it does, and how to add it as a connector.
 
 ---
@@ -157,8 +235,10 @@ For context, Letaido is $99/mo entry (the AI-citation use case sits behind a $69
 
 ## 7. Other risks and gotchas
 
-1. **Scheduler timezone (correctness, not cosmetic).** The Control Center scheduler is in-process and fires at 07:00 / 12:30 / 17:30 local Pacific. Cooldown math (`_troas_cooldown_hit`, `TROAS_COOLDOWN_DAYS`) uses naive `datetime.now()`. In a UTC container, cooldown windows and snooze math shift by the offset, which can let staged changes slip a safety rail. Set container `TZ` and make time math timezone-aware before exposure.
-2. **Secret Manager stub.** `ads_mcp/auth.py` raises `NotImplementedError` for cloud mode. Sidestepped by using Railway secrets and the file-path code path; only implement the stub if moving to GCP.
+1. **Scheduler timezone (correctness, not cosmetic).** ✅ FIXED 2026-07-13: all control-center
+   time math routes through `control_center/clock.py` (`CC_TIMEZONE`, tzdata dependency), so
+   pull times, snooze windows, and cooldown math are operator-local regardless of container TZ.
+2. **Secret Manager stub.** `ads_mcp/auth.py` raises `NotImplementedError` for cloud mode. Sidestepped: hosted services set `GOOGLE_ADS_SERVICE_ACCOUNT_JSON` (inline JSON, checked first in `get_credentials`); only implement the stub if moving to GCP.
 3. **Dropbox / SQLite.** The repos live in Dropbox, which corrupts SQLite WAL files (the Control Center DB was deliberately moved out of Dropbox for this reason). Containers remove the problem; just never mount a Dropbox path into a container.
 4. **EU data residency.** Shopify storefronts likely process EU customer personal data. Routing 18 stores through a US Railway host needs a residency/DPA check. The Klaviyo PII-path block helps, but Shopify order/sales queries may surface personal data. Confidence: medium, depends on store geography and which tools are actually called.
 5. **Incident response / kill switch.** No current plan for fast access cutoff + credential rotation if a token or container is compromised. Add one before exposure.
@@ -175,3 +255,67 @@ For context, Letaido is $99/mo entry (the AI-citation use case sits behind a $69
 ## 9. Open question before execution
 
 Confirm the MER dashboard's actual code location and host, so it is captured in the registry and its origin lockdown (G1) is verified rather than assumed. Everything else can proceed on the Phase 0 decisions above.
+
+---
+
+## 10. G5 approval-gate design (PROPOSAL -- awaiting Adam's sign-off, not built)
+
+This is the design that unlocks hosted writes (Phase 3). It replaces approval-by-bare-cell
+with a plan-bound, single-use, expiring, actor-attributed approval, closing every failure
+mode listed in Section 3. Nothing below is implemented; the hosted dashboard stays read-only
+until Adam approves this section (or an amended version) and it ships.
+
+### Core object: the change plan
+
+A new `change_plans` table in the control-center DB:
+
+```
+change_plans(
+    id            TEXT PRIMARY KEY,      -- UUID4, unguessable
+    kind          TEXT NOT NULL,         -- troas_budget_batch | negatives_batch | campaign_creation
+    payload       TEXT NOT NULL,         -- immutable JSON snapshot of the exact changes
+    created_by    TEXT NOT NULL,         -- actor email
+    created_at    TEXT NOT NULL,
+    approved_by   TEXT,                  -- actor email, admin role required
+    approved_at   TEXT,
+    approval_expires_at TEXT,            -- approved_at + 15 minutes
+    committed_by  TEXT,                  -- actor email
+    committed_at  TEXT,
+    status        TEXT NOT NULL          -- draft | approved | committed | expired | cancelled
+)
+```
+
+### Flow (Control Center UI)
+
+1. **Stage** (admin): staging rows creates or updates a DRAFT plan whose payload is a frozen
+   snapshot of the staged diffs. Any later edit to staged rows invalidates the draft and makes
+   a new plan id. What you approve is exactly what commits, byte for byte.
+2. **Approve** (admin): the review screen renders the plan payload and an Approve button.
+   Approval stamps `approved_by` + `approval_expires_at` (15 min). One approval per plan.
+3. **Commit** (admin): `POST /commit` now REQUIRES `plan_id`. The server verifies, atomically
+   (single SQL transaction): status is `approved`, not expired, payload hash matches the staged
+   rows, and flips status to `committed` before the first mutate call -- making the approval
+   single-use even under concurrent requests. Approver and committer emails are written to
+   `control_center_change_log` (new columns: `plan_id`, `approved_by`, `committed_by`).
+4. **Two-person option** (config flag `CC_REQUIRE_SEPARATE_APPROVER`, default off while the
+   org is one operator): commit rejects when `committed_by == approved_by`.
+
+### Same gate for the MCP commit tools
+
+`commit_troas_changes()` / `commit_budget_changes()` / `commit_all_changes()` gain a required
+`plan_id` argument (finally matching the documented-but-never-built design in CLAUDE.md Phase 3);
+the bare no-argument forms are removed from HTTP mode. The Sheets Decision column stays as the
+review convenience but stops being the gate: commit applies the plan payload, not "whatever is
+currently marked Approve."
+
+### Consolidation prerequisite
+
+Before enabling hosted writes, collapse the three-DB seam (Section 0): either point the CC
+service and the googleads-mcp service at one Postgres, or declare the hosted CC DB the single
+decision store and retire the local instance. Approvals recorded in one DB and committed from
+another would rebuild the split-brain this design exists to prevent.
+
+### Effort estimate
+
+Schema + plan lifecycle + UI changes + MCP tool signatures + tests: roughly one focused session.
+The CSRF, session, role, and audit plumbing it depends on shipped with the read-only migration.

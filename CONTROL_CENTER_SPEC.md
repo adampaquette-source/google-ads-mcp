@@ -1,9 +1,12 @@
 # Ads Control Center -- Requirements and Architecture Spec
 
-Status: v1 BUILT and running 2026-06-09. launchd service `com.toolup.ads-control-center`, dashboard at http://localhost:8770.
-This is the working spec for the local command and control center. It supersedes nothing; it builds on top of `ads_mcp/` and runs beside the MCP server.
+Status: v1 BUILT and running 2026-06-09. Two deployments since 2026-07-13:
+- **Local (write-capable):** launchd service `com.toolup.ads-control-center`, dashboard at http://localhost:8770. The ONLY surface that stages/commits Google Ads changes.
+- **Hosted (read-only):** Railway service `ads-control-center` (project `toolup-mcp`, PCS Projects), https://ads-control-center-production.up.railway.app, behind Google OAuth. Every POST returns 403 except admin `/pull` until the G5 approval gate ships (`HOSTING_MIGRATION_PLAN.md` Sections 0 and 10).
 
-## Operations (how it runs)
+This is the working spec for the command and control center. It supersedes nothing; it builds on top of `ads_mcp/` and runs beside the MCP server.
+
+## Operations: local launchd service (write-capable)
 
 - **Deploy model:** the service runs from a code copy at `~/Library/Application Support/ads-control-center/app/`, NOT from this project folder. macOS blocks background launchd processes from reading the Dropbox CloudStorage mount (python hangs in interpreter startup), so the installer rsyncs code + `.env` + `credentials/` + `shopify_mcp/` there and builds a venv.
 - **After any code change to `control_center/` or `ads_mcp/`, redeploy:** `./scripts/install_control_center.sh` (also restarts the agent).
@@ -12,6 +15,21 @@ This is the working spec for the local command and control center. It supersedes
 - Stop: `launchctl bootout gui/$(id -u)/com.toolup.ads-control-center`. Start: re-run the installer.
 - Cooldown sharing: control center commits append to the Sheets tROAS Log / Budget Log tabs, and stage-time cooldown checks read the same tROAS Log, so the M/W/F audit flow and the control center cannot stack changes on each other inside the 3-day window.
 - Alert webhook: uses `GOOGLE_ADS_CC_WEBHOOK_URL` if set, else falls back to `GOOGLE_CHAT_WEBHOOK_URL`.
+
+## Operations: hosted Railway service (read-only)
+
+- **URL:** https://ads-control-center-production.up.railway.app (project `toolup-mcp`, PCS Projects workspace, service `ads-control-center`).
+- **Mode switch:** the app detects hosted mode by the `PORT` env var (Railway sets it). Same image as `googleads-mcp`; `SERVICE_ROLE=control-center` makes `serve.sh` start the dashboard instead of the MCP server.
+- **Auth (`control_center/webauth.py`):** Google OAuth (openid email) with the same GCP OAuth client as the MCP services (variables referenced from `googleads-mcp`). `CC_ROLE_MAP` is the default-deny allowlist, JSON of email -> `admin` | `viewer`. Dropping an email from the map invalidates live sessions on the next request. Startup is fail-closed: hosted mode without complete auth config refuses to boot.
+- **Read-only gate:** every mutating request 403s except `/pull` (admin + CSRF). Stage/commit/snooze/approve stay local-only so decisions never split across databases; this flips when G5 lands.
+- **Data:** own Railway volume at `/data` (`ADS_CC_DB_PATH=/data/control_center.db`, `ADS_MCP_AUDIT_LOG_PATH=/data/audit.db`). On first boot with an empty DB the scheduler runs the 180-day backfill automatically, then pulls on the normal 07:00 / 12:30 / 17:30 schedule in `CC_TIMEZONE` (America/Los_Angeles; all time math goes through `control_center/clock.py`).
+- **Shopify sales / MER:** set `SHOPIFY_MCP_ENV` to the full contents of the local `shopify_mcp/.env` (one-time, from the project root):
+  `railway variables --set "SHOPIFY_MCP_ENV=$(cat shopify_mcp/.env)" --service ads-control-center`
+  Until set, MER shows "No sales data" and everything else works.
+- **Alerts:** `CC_ALERTS_ENABLED=0` on the hosted service (the local instance still alerts; avoids double Chat posts). Flip both when the local service retires.
+- **Deploy/update:** `railway up --service ads-control-center` from the repo root (respects `.railwayignore`), or connect the service to the GitHub repo `adampaquette-source/google-ads-mcp` branch `main` in the Railway dashboard for push-to-deploy, same as `googleads-mcp`. Logs: `railway logs --service ads-control-center`.
+- **Access management:** edit `CC_ROLE_MAP` (`railway variables --set 'CC_ROLE_MAP={...}' --service ads-control-center`) and redeploy; sessions of removed users die immediately, new users can log in after the variable lands.
+- **Env var reference:** `SERVICE_ROLE`, `ADS_CC_DB_PATH`, `ADS_MCP_AUDIT_LOG_PATH`, `CC_TIMEZONE`, `CC_BASE_URL`, `CC_SESSION_SECRET` (random, >= 32 chars), `CC_ROLE_MAP`, `CC_ALERTS_ENABLED`, `SHOPIFY_MCP_ENV`, plus `GOOGLE_OAUTH_CLIENT_ID/SECRET` and `GOOGLE_ADS_*` referenced from the `googleads-mcp` service.
 
 ## Problem statement
 
