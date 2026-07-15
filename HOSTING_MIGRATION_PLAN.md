@@ -73,8 +73,8 @@ MCP service -- and should be part of the G5 build.
 | G5 approval gate | NOT BUILT. Proposal in Section 10 awaiting Adam's sign-off. Until then hosted writes are hard-disabled. |
 | G6 CSRF | Built in `webauth.py` and enforced on the one live POST (`/pull`); already wired in templates for the write routes so enabling them later inherits it. |
 | G7 no static MCP tokens | Done (per-user OAuth on all MCP services). |
-| G8 rate limiting | Not built (unchanged risk; hosted CC adds only scheduled pulls + admin manual pull). |
-| G9 supply chain | Partial: `uv sync --frozen` from the reviewed lockfile, pinned uv binary, non-root runtime. No egress restriction, no rotation plan yet. |
+| G8 rate limiting | Done for the MCP servers (2026-07-14): per-actor per-minute limit + per-tool daily caps in `authz.py` (see Section 11). Control Center still relies on scheduled + admin-only pulls. |
+| G9 supply chain | Partial: `uv sync --frozen` from the reviewed lockfile, pinned uv binary, non-root runtime. Key-rotation runbook now documented (Section 11, `MCP_JWT_SIGNING_KEY`); no egress restriction yet. |
 | G10 credential segmentation | Not done: the CC service holds the same full-write service account as the MCP service even though it only reads. A read-only Google Ads login is not offered by the API (access level is per MCC user), so segmentation means G5's write-broker idea, not a weaker credential. |
 
 Goal: get the custom MCP servers and local utility web apps off Adam's laptop and onto a cloud host so the tooling is centralized and reachable by anyone in the company. Two consumption modes confirmed:
@@ -319,3 +319,54 @@ another would rebuild the split-brain this design exists to prevent.
 
 Schema + plan lifecycle + UI changes + MCP tool signatures + tests: roughly one focused session.
 The CSRF, session, role, and audit plumbing it depends on shipped with the read-only migration.
+
+---
+
+## 11. Connector hardening pass (2026-07-14)
+
+Findings from a security audit of the four hosted MCP connectors (`googleads-mcp`,
+`shopify-mcp`, `klaviyo-mcp`, `imagegen-mcp`). Items 1, 2, and 6 shipped in this pass; 4 and 5
+are documented here (their code/act steps have real blockers); item 3 (credential
+segmentation) is deferred to the G5 write-broker.
+
+### Shipped
+
+- **File-read / SSRF on the upload tools (finding 1).** `shopify_upload_file` and
+  `klaviyo_upload_image` read a caller-supplied local `file_path`. Hosted, that path can only
+  reach the container's own filesystem (secrets, DCR store), so both now hard-refuse in HTTP
+  mode (`PORT` set) and stay unchanged over local stdio. `ads_mcp/creation/assets.py`
+  (`upload_google_ads_image_asset`) fetched a caller URL with `urllib.request.urlopen`, which
+  honors `file://`/`http://` and follows redirects — now gated to https public hostnames
+  (no bare IPs, no `localhost`/`.internal`), redirects re-validated each hop, size-capped.
+- **Per-actor rate limit + per-tool daily caps (finding 2).** Enforced in the shared
+  `authz.py` `RoleAuthzMiddleware`, keyed by verified email, in process memory (single
+  uvicorn process, so no external store needed). Env: `MCP_RATE_LIMIT_PER_MIN` (default 120,
+  0 disables) and `MCP_TOOL_DAILY_CAPS` (JSON tool -> int, fnmatch OK). Budgets are charged
+  only for calls authorization already permits. **Action:** set
+  `MCP_TOOL_DAILY_CAPS={"generate_image":300,"edit_image":300}` on the `imagegen-mcp`
+  service (its tools cost OpenAI money); the per-minute default covers the rest.
+- **No-auth banner (finding 6).** `MCP_ALLOW_NO_AUTH=1` now prints a repeated stderr warning
+  at startup so an accidental unauthenticated deployment is visible in Railway logs.
+
+### Documented, not yet acted (blockers noted)
+
+- **`forwarded_allow_ips="*"` (finding 4).** Every HTTP server trusts `X-Forwarded-*` from any
+  source. The intended fix is pinning to Railway's proxy range, but Railway does not publish a
+  stable internal proxy CIDR, so there is nothing reliable to pin to. Residual risk is
+  contained by the platform boundary: only Railway's edge can reach the container port. Leave
+  as-is; revisit if Railway ever documents fixed proxy IPs or if a connector is exposed
+  outside Railway's edge.
+
+- **`MCP_JWT_SIGNING_KEY` rotation (finding 5, part of G9).** This one secret both signs user
+  sessions and encrypts the FastMCP DCR client-registration store (`FASTMCP_HOME`), so
+  rotating it is not zero-downtime. **Runbook (per service, during a low-use window):**
+  1. Generate a new key: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+  2. In Railway, set `MCP_JWT_SIGNING_KEY` to the new value on the service and redeploy.
+  3. Effect: all existing sessions are invalidated (users re-authenticate through Google on
+     next use) and previously-registered DCR clients can no longer be decrypted, so each MCP
+     client re-runs dynamic client registration on reconnect. Both recover automatically on
+     the next connect; no manual client cleanup is needed.
+  4. Repeat for each connector (keys are per service and need not match).
+  Cadence: rotate on a schedule (e.g. quarterly) and immediately on any suspected exposure.
+  There is no code blocker; the blocker is the forced re-auth, so schedule it rather than
+  rotating ad hoc.

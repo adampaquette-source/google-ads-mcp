@@ -16,6 +16,7 @@ Required env (all four, or startup fails):
 """
 
 import os
+import sys
 
 from fastmcp.server.auth.providers.google import GoogleProvider
 
@@ -38,6 +39,17 @@ def build_auth() -> GoogleProvider | None:
 
     if not any(values.values()):
         if os.environ.get("MCP_ALLOW_NO_AUTH") == "1":
+            # Loud, repeated banner so an accidental no-auth deployment cannot
+            # slip by unnoticed in the Railway logs. This path must only ever
+            # run on a platform-private service with no public domain.
+            banner = (
+                "!!! MCP_ALLOW_NO_AUTH=1: this HTTP server is running with NO "
+                "authentication and NO authorization. Every connected client can "
+                "call every tool. This is only safe on a platform-private service "
+                "with no public domain or TCP proxy. !!!"
+            )
+            for _ in range(3):
+                print(banner, file=sys.stderr, flush=True)
             return None
         raise AuthConfigError(
             "HTTP mode requires Google OAuth configuration "

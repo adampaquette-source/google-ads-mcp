@@ -26,6 +26,11 @@ Emails are matched case-insensitively and must be verified by Google
 (email_verified claim) to count. A malformed MCP_ROLE_MAP aborts startup
 (fail-closed) rather than silently granting nothing/everything.
 
+MCP_RATE_LIMIT_PER_MIN (default 120, 0 disables) caps tool calls per actor
+per rolling minute. MCP_TOOL_DAILY_CAPS (JSON tool-name -> int, fnmatch
+patterns OK) caps calls per actor per UTC day for cost-bearing tools. Both
+are enforced only for calls authorization already permits.
+
 Every tool call is audited as a JSON line to stdout (captured by Railway
 logs) and, when MCP_HTTP_AUDIT_PATH is set, appended to that file.
 """
@@ -34,6 +39,7 @@ import json
 import os
 import sys
 import time
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 
@@ -90,6 +96,96 @@ def _load_admin_only() -> tuple:
 
 _ROLE_MAP = _load_role_map()
 _ADMIN_ONLY = _load_admin_only()
+
+
+# ── Rate limiting and per-tool daily caps ────────────────────────────────────
+#
+# Both are per-authenticated-actor (by verified email) and live in process
+# memory. The HTTP servers run as a single uvicorn process, so a plain dict is
+# a correct, sufficient store — no external cache needed. State resets on
+# redeploy, which is acceptable for an abuse/runaway backstop.
+#
+#   MCP_RATE_LIMIT_PER_MIN  max tool calls per actor per rolling 60s.
+#                           Default 120. Set to 0 to disable.
+#   MCP_TOOL_DAILY_CAPS     JSON object of tool-name (fnmatch) -> max calls per
+#                           actor per UTC day. Empty/unset means no caps. Use it
+#                           for cost-bearing tools, e.g. on imagegen:
+#                             {"generate_image": 300, "edit_image": 300}
+
+
+def _per_min_limit() -> int:
+    try:
+        return int(os.environ.get("MCP_RATE_LIMIT_PER_MIN", "120") or "0")
+    except ValueError:
+        return 120
+
+
+def _load_daily_caps() -> list[tuple[str, int]]:
+    raw = os.environ.get("MCP_TOOL_DAILY_CAPS", "")
+    if not raw:
+        return []
+    try:
+        obj = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    caps: list[tuple[str, int]] = []
+    for pattern, cap in obj.items():
+        try:
+            caps.append((pattern, int(cap)))
+        except (ValueError, TypeError):
+            continue
+    return caps
+
+
+_RATE_PER_MIN = _per_min_limit()
+_DAILY_CAPS = _load_daily_caps()
+
+_call_times: dict[str, deque] = defaultdict(deque)
+_daily_day: str | None = None
+_daily_counts: dict[tuple[str, str], int] = {}
+
+
+def _daily_cap_for(tool_name: str) -> int | None:
+    matching = [cap for pattern, cap in _DAILY_CAPS if fnmatch(tool_name, pattern)]
+    return min(matching) if matching else None
+
+
+def _roll_day() -> None:
+    global _daily_day
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    if today != _daily_day:
+        _daily_day = today
+        _daily_counts.clear()
+
+
+def _throttle_reason(email: str | None, tool_name: str) -> str | None:
+    """Check per-day cap and per-minute rate for this actor+tool.
+
+    Returns a human-readable reason when the call must be rejected, else None.
+    On None it also consumes one unit from each active budget (check-and-commit
+    in a single synchronous pass — safe in this single-process server)."""
+    actor = (email or "?").lower()
+
+    cap = _daily_cap_for(tool_name)
+    if cap is not None:
+        _roll_day()
+        if _daily_counts.get((actor, tool_name), 0) >= cap:
+            return f"daily cap of {cap} call(s) for {tool_name} reached for this identity"
+
+    if _RATE_PER_MIN > 0:
+        now = time.monotonic()
+        window = _call_times[actor]
+        cutoff = now - 60
+        while window and window[0] < cutoff:
+            window.popleft()
+        if len(window) >= _RATE_PER_MIN:
+            return f"rate limit of {_RATE_PER_MIN} calls/min exceeded for this identity"
+        window.append(now)
+
+    if cap is not None:
+        _daily_counts[(actor, tool_name)] = _daily_counts.get((actor, tool_name), 0) + 1
+
+    return None
 
 
 def _matches(name: str, patterns: tuple) -> bool:
@@ -154,19 +250,25 @@ class RoleAuthzMiddleware(Middleware):
         allowed = _grant_allows(
             grant, tool_name, await _is_read_only_tool_name(context, tool_name)
         )
+        # Only charge the rate/quota budgets for calls that authorization would
+        # otherwise permit — a denied call must not consume an actor's quota.
+        throttle = _throttle_reason(email, tool_name) if allowed else None
         _audit(
             {
                 "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "actor": email,
                 "role": grant.base if grant else None,
                 "tool": tool_name,
-                "allowed": allowed,
+                "allowed": allowed and throttle is None,
+                "throttled": throttle,
             }
         )
         if not allowed:
             raise ToolError(
                 f"Not authorized: identity {email or 'unknown'} may not call {tool_name}."
             )
+        if throttle:
+            raise ToolError(f"Throttled: {throttle}. Try again later.")
         return await call_next(context)
 
 
